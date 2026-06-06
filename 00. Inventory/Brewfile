@@ -1,0 +1,100 @@
+# OS-independent implementation of the ACPI specification
+brew "acpica"
+# Dependency manager for Cocoa projects
+brew "cocoapods"
+# Play, record, convert, and stream select audio and video codecs
+brew "ffmpeg"
+# Tools and libraries to manipulate images in select formats
+brew "imagemagick"
+# Clone of ls with colorful output, file type icons, and more
+brew "lsd"
+# Fast, highly customisable system info script
+brew "neofetch"
+# Ambitious Vim-fork focused on extensibility and agility
+brew "neovim"
+# Port scanning utility for large networks
+brew "nmap"
+# General-purpose speech recognition model
+brew "openai-whisper"
+# Development kit for the Java programming language
+brew "openjdk@17"
+# Object-relational database system
+brew "postgresql@16", restart_service: :changed, link: true
+# Interpreted, interactive, object-oriented programming language
+brew "python@3.11"
+# Non-interactive SSH password auth
+brew "sshpass"
+# Cross-shell prompt for astronauts
+brew "starship"
+# Display directories as trees (with optional color/HTML output)
+brew "tree"
+# Generate your Xcode project from a spec file and your folder structure
+brew "xcodegen"
+# Fish shell like syntax highlighting for zsh
+brew "zsh-syntax-highlighting"
+# GPU-accelerated terminal emulator
+cask "alacritty"
+# Command-line tools for building and debugging Android apps
+cask "android-commandlinetools"
+cask "font-jetbrains-mono-nerd-font"
+# Terminal emulator as alternative to Apple's Terminal app
+cask "iterm2"
+# Open-source Markdown editor
+cask "macdown"
+vscode "ahmadawais.shades-of-purple"
+vscode "anthropic.claude-code"
+vscode "asvetliakov.vscode-neovim"
+vscode "bierner.markdown-preview-github-styles"
+vscode "bmewburn.vscode-intelephense-client"
+vscode "bradlc.vscode-tailwindcss"
+vscode "christian-kohler.npm-intellisense"
+vscode "christian-kohler.path-intellisense"
+vscode "dbaeumer.vscode-eslint"
+vscode "devsense.composer-php-vscode"
+vscode "devsense.intelli-php-vscode"
+vscode "devsense.phptools-vscode"
+vscode "devsense.profiler-php-vscode"
+vscode "dsznajder.es7-react-js-snippets"
+vscode "enkia.tokyo-night"
+vscode "esbenp.prettier-vscode"
+vscode "expo.vscode-expo-tools"
+vscode "formulahendry.auto-rename-tag"
+vscode "github.codespaces"
+vscode "github.copilot"
+vscode "github.copilot-chat"
+vscode "jdinhlife.gruvbox"
+vscode "ms-python.debugpy"
+vscode "ms-python.python"
+vscode "ms-python.vscode-pylance"
+vscode "ms-python.vscode-python-envs"
+vscode "ms-vscode-remote.remote-containers"
+vscode "ms-vscode.cmake-tools"
+vscode "ms-vscode.cpp-devtools"
+vscode "ms-vscode.cpptools"
+vscode "ms-vscode.cpptools-extension-pack"
+vscode "ms-vscode.cpptools-themes"
+vscode "pkief.material-icon-theme"
+vscode "pmneo.tsimporter"
+vscode "postman.postman-for-vscode"
+vscode "prisma.prisma"
+vscode "pucelle.vscode-css-navigation"
+vscode "redhat.java"
+vscode "redhat.vscode-yaml"
+vscode "ritwickdey.liveserver"
+vscode "steoates.autoimport"
+vscode "streetsidesoftware.code-spell-checker"
+vscode "stylelint.vscode-stylelint"
+vscode "teabyii.ayu"
+vscode "vincaslt.highlight-matching-tag"
+vscode "vscjava.vscode-gradle"
+vscode "vscjava.vscode-java-debug"
+vscode "vscjava.vscode-java-dependency"
+vscode "vscjava.vscode-java-pack"
+vscode "vscjava.vscode-java-test"
+vscode "vscjava.vscode-maven"
+vscode "vscodevim.vim"
+npm "claude"
+npm "corepack"
+npm "eas-cli"
+npm "n8n"
+npm "uipro-cli"

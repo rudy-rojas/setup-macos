@@ -1,0 +1,5 @@
+alacritty 0.17.0
+android-commandlinetools 14742923
+font-jetbrains-mono-nerd-font 3.4.0
+iterm2 3.6.11
+macdown 0.7.2

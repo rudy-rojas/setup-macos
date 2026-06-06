@@ -1,0 +1,8 @@
+/usr/local/lib
+├── claude@0.1.1
+├── corepack@0.34.2
+├── eas-cli@16.28.0
+├── n8n@2.6.3
+├── npm@11.16.0
+└── uipro-cli@2.2.3
+
