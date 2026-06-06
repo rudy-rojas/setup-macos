@@ -724,7 +724,7 @@ opacity         = ${OPACITY}
 blur            = true
 padding         = { x = 16, y = 14 }
 dynamic_padding = false
-option_as_alt   = "Both"
+option_as_alt   = "None"
 # Initial window size (columns x rows).
 dimensions      = { columns = ${COLS}, lines = ${ROWS} }
 # Alacritty closes the window automatically when the shell exits ('exit'),
