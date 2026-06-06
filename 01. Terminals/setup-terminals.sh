@@ -33,6 +33,15 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# ── Shared library (setup-macos) ────────────────────────────────────────────
+# Pull in the common helpers — chiefly the arch-aware Homebrew detection
+# ($BREW / $BREW_PREFIX), shared with the rest of the setup.sh modules. This
+# module keeps its own richer logging, traps, backups and step numbering; it
+# only borrows the brew-detection base so all modules agree on the prefix.
+_TERM_HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=../lib/common.sh
+source "${_TERM_HERE}/../lib/common.sh"
+
 # ── Metadata ────────────────────────────────────────────────────────────────
 readonly SCRIPT_VERSION="2.6.0"
 readonly SCRIPT_NAME="${0##*/}"
@@ -269,15 +278,9 @@ ensure_homebrew() {
     success "Homebrew is already installed"
   fi
 
-  # Make sure `brew` is on the PATH (Apple Silicon vs Intel).
-  if ! have brew; then
-    if [[ -x /opt/homebrew/bin/brew ]]; then
-      eval "$(/opt/homebrew/bin/brew shellenv)"
-    elif [[ -x /usr/local/bin/brew ]]; then
-      eval "$(/usr/local/bin/brew shellenv)"
-    fi
-  fi
-
+  # Ensure `brew` is on the PATH using the shared arch-aware detection
+  # (lib/common.sh exports $BREW for both /opt/homebrew and /usr/local).
+  have brew || eval "$("$BREW" shellenv)"
   have brew || { error "Couldn't locate 'brew' on the PATH after installation."; exit 1; }
 
   # Update the formula indexes (silent, not critical if it fails).
