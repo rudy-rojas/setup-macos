@@ -30,7 +30,10 @@
 # -e            : abort on the first command that fails.
 # -u            : treat unset variables as an error.
 # -o pipefail   : a pipeline fails if any stage fails, not just the last.
-set -euo pipefail
+# -E (errtrace) : the ERR trap is inherited by functions/subshells, so on_error
+#                 actually fires for failures inside functions (where all the
+#                 real work happens), not only at top level.
+set -Eeuo pipefail
 IFS=$'\n\t'
 
 # ── Shared library (setup-macos) ────────────────────────────────────────────
@@ -101,6 +104,9 @@ USE_COLOR=1
 BACKUP_MADE=0
 declare -a WARNINGS=()    # Accumulates non-fatal warnings for the final summary.
 STEP=0
+# Color vars default to empty so the loggers and the ERR trap are safe under
+# `set -u` even before init_colors() runs (the trap is armed earlier, in main).
+RESET=''; BOLD=''; DIM=''; RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''
 
 # ── Colors and logging ──────────────────────────────────────────────────────
 init_colors() {
@@ -113,13 +119,20 @@ init_colors() {
   fi
 }
 
-# Write to the log file (no color codes) and to the console.
-_log_file() { printf '%s [%s] %s\n' "$(date '+%H:%M:%S')" "$1" "$2" >>"${LOG_FILE}"; }
+# Write to the log file (color-free) and to the console.
+# Strip ANSI escapes from the message so the log stays clean even if a caller
+# embedded color vars in it; the console copy keeps its color.
+_log_file() {
+  local _msg; _msg="$(printf '%s' "$2" | LC_ALL=C sed $'s/\033\\[[0-9;]*m//g')"
+  printf '%s [%s] %s\n' "$(date '+%H:%M:%S')" "$1" "${_msg}" >>"${LOG_FILE}"
+}
 
+# Console label and log tag match (e.g. [FAIL] ↔ FAIL) so grepping the log for
+# what you saw on screen works.
 info()    { _log_file "INFO" "$1"; printf '%s%s[INFO]%s  %s\n'  "${BLUE}"  "${BOLD}" "${RESET}" "$1"; }
 success() { _log_file "OK"   "$1"; printf '%s%s[ OK ]%s  %s\n'  "${GREEN}" "${BOLD}" "${RESET}" "$1"; }
 warning() { _log_file "WARN" "$1"; printf '%s%s[WARN]%s  %s\n'  "${YELLOW}" "${BOLD}" "${RESET}" "$1"; WARNINGS+=("$1"); }
-error()   { _log_file "ERR"  "$1"; printf '%s%s[FAIL]%s  %s\n'  "${RED}"   "${BOLD}" "${RESET}" "$1" >&2; }
+error()   { _log_file "FAIL" "$1"; printf '%s%s[FAIL]%s  %s\n'  "${RED}"   "${BOLD}" "${RESET}" "$1" >&2; }
 step()    { STEP=$((STEP + 1)); _log_file "STEP" "$1"; printf '\n%s%s── %d. %s%s\n' "${CYAN}" "${BOLD}" "${STEP}" "$1" "${RESET}"; }
 
 # ── Error handling ──────────────────────────────────────────────────────────
@@ -285,7 +298,7 @@ ensure_homebrew() {
 
   # Update the formula indexes (silent, not critical if it fails).
   info "Updating Homebrew indexes..."
-  brew update >/dev/null 2>&1 || warning "Couldn't update Homebrew; using the current index."
+  brew update >>"${LOG_FILE}" 2>&1 || warning "Couldn't update Homebrew; using the current index."
 }
 
 # ── 3. Dependency installation (idempotent) ─────────────────────────────────
@@ -304,14 +317,14 @@ install_cask() {
   # Common case: the app already exists but was installed manually (not via Homebrew).
   # Homebrew would refuse to overwrite it; we try to "adopt" it and, failing that, leave it.
   if [[ -n "${app_path}" && -d "${app_path}" ]]; then
-    if brew install --cask --adopt "${name}" >/dev/null 2>&1; then
+    if brew install --cask --adopt "${name}" >>"${LOG_FILE}" 2>&1; then
       success "Cask '${name}' adopted by Homebrew (was already installed)."
     else
       info "'${name}' is already installed at ${app_path} (outside Homebrew), leaving it."
     fi
     return 0
   fi
-  if brew install --cask "${name}" >/dev/null 2>&1; then
+  if brew install --cask "${name}" >>"${LOG_FILE}" 2>&1; then
     success "Installed (cask): ${name}"
   else
     warning "Couldn't install cask '${name}'. Check the log."
@@ -322,7 +335,7 @@ install_formula() {
   local name="$1"
   if brew_formula_installed "${name}"; then
     info "Formula '${name}' already installed, skipping."
-  elif brew install "${name}" >/dev/null 2>&1; then
+  elif brew install "${name}" >>"${LOG_FILE}" 2>&1; then
     success "Installed (formula): ${name}"
   else
     warning "Couldn't install formula '${name}'. Check the log."

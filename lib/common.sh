@@ -10,16 +10,18 @@ set -euo pipefail
 
 # ── Colors / logging ─────────────────────────────────────────────────────────
 if [[ -t 1 ]]; then
-  C_RST=$'\033[0m'; C_BLU=$'\033[34m'; C_GRN=$'\033[32m'
+  C_RST=$'\033[0m'; C_BLU=$'\033[34m'; C_GRN=$'\033[32m'; C_CYN=$'\033[36m'
   C_YLW=$'\033[33m'; C_RED=$'\033[31m'; C_DIM=$'\033[2m'; C_BLD=$'\033[1m'
 else
-  C_RST=''; C_BLU=''; C_GRN=''; C_YLW=''; C_RED=''; C_DIM=''; C_BLD=''
+  C_RST=''; C_BLU=''; C_GRN=''; C_CYN=''; C_YLW=''; C_RED=''; C_DIM=''; C_BLD=''
 fi
-log()  { printf '%s▶%s %s\n'  "$C_BLU" "$C_RST" "$*"; }
-ok()   { printf '%s✓%s %s\n'  "$C_GRN" "$C_RST" "$*"; }
-warn() { printf '%s!%s %s\n'  "$C_YLW" "$C_RST" "$*" >&2; }
-die()  { printf '%s✗%s %s\n'  "$C_RED" "$C_RST" "$*" >&2; exit 1; }
-step() { printf '\n%s━━ %s%s %s━━%s\n' "$C_BLU$C_BLD" "$*" "$C_RST" "$C_BLU$C_BLD" "$C_RST"; }
+# Unified look across all modules (same tags/colors/titles as 01. Terminals):
+# bracketed 6-char level tags [INFO]/[ OK ]/[WARN]/[FAIL] and cyan "── Title".
+log()  { printf '%s%s[INFO]%s  %s\n' "$C_BLU" "$C_BLD" "$C_RST" "$*"; }
+ok()   { printf '%s%s[ OK ]%s  %s\n' "$C_GRN" "$C_BLD" "$C_RST" "$*"; }
+warn() { printf '%s%s[WARN]%s  %s\n' "$C_YLW" "$C_BLD" "$C_RST" "$*" >&2; }
+die()  { printf '%s%s[FAIL]%s  %s\n' "$C_RED" "$C_BLD" "$C_RST" "$*" >&2; exit 1; }
+step() { printf '\n%s%s── %s%s\n' "$C_CYN" "$C_BLD" "$*" "$C_RST"; }
 
 # ── Platform / architecture ──────────────────────────────────────────────────
 [[ "$(uname -s)" == "Darwin" ]] || die "setup-macos is for macOS only."
