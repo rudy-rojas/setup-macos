@@ -38,14 +38,28 @@ Provisión **idempotente y modular** de un Mac para desarrollo **web/móvil** (s
 | 12 | iOS          | Xcode + CocoaPods (**opt-in**: `INSTALL_IOS=1`) |
 | 13 | Ops/VPS      | sshpass |
 
-## Variables opcionales
+## Configuración (`setup.env`)
+
+Para una instalación **desatendida** (sin prompts a media instalación), define los
+parámetros en un archivo `setup.env` en la raíz. `setup.sh` lo carga al inicio y
+exporta las variables a todos los módulos:
+
+```bash
+cp setup.env.example setup.env   # plantilla versionada → tu copia (gitignored)
+# edita setup.env con tus valores
+./setup.sh
+```
+
+`setup.env` está en `.gitignore` (puede contener secretos como `MYSQL_ROOT_PASSWORD`);
+la plantilla `setup.env.example` sí se versiona. Sin el archivo, todo corre con los
+valores por defecto. Las variables también pueden pasarse inline (`VAR=… ./setup.sh`).
 
 | Variable | Módulo | Efecto |
 |---|---|---|
 | `GIT_USER_NAME` / `GIT_USER_EMAIL` | 05 | Identidad de git |
-| `PG_DATABASES="db1 db2"` | 08 | Crea esas bases vacías + extensiones |
-| `MYSQL_ROOT_PASSWORD` | 10 | Fija la contraseña de root de MySQL |
-| `INSTALL_IOS=1` | 12 | Activa el módulo iOS (opt-in) |
+| `PG_DATABASES="db1 db2"` | 08 | Crea esas bases vacías + extensiones (Postgres no usa contraseña) |
+| `MYSQL_ROOT_PASSWORD` | 10 | Fija la contraseña de root de MySQL (no interactivo, sin prompt) |
+| `INSTALL_IOS=1` | 12 | Activa el módulo iOS (opt-in, ~12 GB) |
 
 ## Idempotencia
 

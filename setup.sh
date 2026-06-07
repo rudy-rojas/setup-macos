@@ -26,6 +26,15 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 source "$HERE/lib/common.sh"
 
+# Configuración local (gitignored): si existe setup.env, se carga y se EXPORTA
+# todo (set -a) para que los módulos hereden GIT_USER_*, PG_DATABASES,
+# MYSQL_ROOT_PASSWORD, INSTALL_IOS, etc. sin prompts a media instalación.
+# Plantilla: setup.env.example. Sin el archivo, se usan los valores por defecto.
+if [[ -f "$HERE/setup.env" ]]; then
+  set -a; source "$HERE/setup.env"; set +a
+  ok "configuración cargada desde setup.env"
+fi
+
 ONLY=""; FROM=""; DRY=0; LIST=0; SKIPS=" "
 while [[ $# -gt 0 ]]; do
   case "$1" in

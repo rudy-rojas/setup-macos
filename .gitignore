@@ -235,6 +235,10 @@ build/
 !.env.sample
 !.env.template
 
+# setup-macos: config local con secretos (ignorar), pero versionar la plantilla
+setup.env
+!setup.env.example
+
 # Lock files — choose ONE convention per project; keep only what you use
 # Uncomment the ones you DON'T use to avoid committing them:
 # package-lock.json
