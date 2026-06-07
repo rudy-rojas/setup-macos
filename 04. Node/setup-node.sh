@@ -18,8 +18,11 @@ brew_ensure fnm
 # 2. Hook de fnm en ~/.zshrc (shell interactivo; --use-on-cd necesita el hook chpwd), una vez.
 append_once "$ZSHRC" 'eval "$(fnm env --use-on-cd --shell zsh)"'
 
-# 3. Activar fnm en la sesión actual del script.
-eval "$(fnm env --use-on-cd --shell zsh)"
+# 3. Activar fnm en la sesión actual del script (este script corre en BASH).
+#    Usamos --shell bash, NO zsh: el hook zsh de --use-on-cd emite 'autoload'/
+#    'add-zsh-hook' (builtins solo de zsh) y revientan en bash. El hook interactivo
+#    para zsh ya quedó en ~/.zshrc (paso 2); aquí solo necesitamos fnm en el PATH.
+eval "$(fnm env --shell bash)"
 
 # 4. Instalar Node LTS, activarlo y fijarlo como default.
 log "fnm install --lts…"
