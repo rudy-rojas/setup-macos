@@ -34,7 +34,7 @@ Provisión **idempotente y modular** de un Mac para desarrollo **web/móvil** (s
 | 08 | PostgreSQL   | postgresql@16 + servicio + extensiones |
 | 09 | Redis        | redis + servicio |
 | 10 | MySQL        | mysql (brew services) + DBeaver |
-| 11 | Android      | watchman · JDK 17 · Android SDK · EAS |
+| 11 | Android      | watchman · JDK 17 · Android SDK · EAS (+ Android Studio **opcional**) |
 | 12 | iOS          | Xcode + CocoaPods (**opt-in**: `INSTALL_IOS=1`) |
 | 13 | Ops/VPS      | sshpass |
 
@@ -59,6 +59,7 @@ valores por defecto. Las variables también pueden pasarse inline (`VAR=… ./se
 | `GIT_USER_NAME` / `GIT_USER_EMAIL` | 05 | Identidad de git |
 | `PG_DATABASES="db1 db2"` | 08 | Crea esas bases vacías + extensiones (Postgres no usa contraseña) |
 | `MYSQL_ROOT_PASSWORD` | 10 | Fija la contraseña de root de MySQL (no interactivo, sin prompt) |
+| `INSTALL_ANDROID_STUDIO=1` | 11 | Instala Android Studio GUI (opcional, ~1.2 GB) |
 | `INSTALL_IOS=1` | 12 | Activa el módulo iOS (opt-in, ~12 GB) |
 
 ## Idempotencia

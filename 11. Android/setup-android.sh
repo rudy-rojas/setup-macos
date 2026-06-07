@@ -44,7 +44,16 @@ else
   warn "sdkmanager no está en el PATH todavía; abre una terminal nueva y reintenta, o revisa el cask android-commandlinetools."
 fi
 
-# 6. EAS CLI (global; usa el npm gestionado por fnm).
+# 6. Android Studio (GUI) — OPCIONAL (~1.2 GB). Para RN/Expo con EAS NO es
+#    imprescindible (basta cmdline-tools + SDK); útil para el AVD Manager, el
+#    emulador y el debug. Opt-in con INSTALL_ANDROID_STUDIO=1 (o en setup.env).
+if [[ "${INSTALL_ANDROID_STUDIO:-0}" == "1" ]]; then
+  cask_ensure android-studio
+else
+  warn "Android Studio omitido (opcional). Actívalo con: INSTALL_ANDROID_STUDIO=1 ./setup.sh 11"
+fi
+
+# 7. EAS CLI (global; usa el npm gestionado por fnm).
 if need_cmd eas; then
   ok "eas ya instalado ($(eas --version 2>/dev/null | head -1))"
 elif need_cmd npm; then
