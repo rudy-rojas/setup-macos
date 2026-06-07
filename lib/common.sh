@@ -65,6 +65,51 @@ append_once() {
   ok "añadido a $(basename "$file"): ${C_DIM}${line}${C_RST}"
 }
 
+# ── Command Line Tools de Xcode ──────────────────────────────────────────────
+# Homebrew necesita las CLT (clang, headers, git). Las instala SOLO si faltan,
+# de forma desatendida (softwareupdate) y, si eso no es posible, cae al instalador
+# gráfico de Apple (xcode-select --install). Un Xcode completo también las provee,
+# así que si ya hay un toolchain válido esto es no-op. (El Xcode completo se maneja
+# aparte en el módulo 12 iOS; aquí solo garantizamos la dependencia de brew.)
+clt_present() {
+  local dir
+  dir="$(xcode-select -p 2>/dev/null)" || return 1
+  [[ -n "$dir" && -d "$dir" ]]
+}
+ensure_clt() {
+  if clt_present; then
+    ok "Command Line Tools / Xcode ya presentes ($(xcode-select -p))"
+    return 0
+  fi
+
+  log "instalando los Command Line Tools de Xcode (desatendido)…"
+  # Truco soportado por Apple: este archivo-bandera hace que 'softwareupdate -l'
+  # liste las CLT como un update instalable sin abrir la GUI.
+  local flag="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
+  touch "$flag"
+  local label
+  label="$(softwareupdate -l 2>/dev/null \
+            | awk -F'Label: ' '/Label: Command Line Tools/{print $2}' \
+            | sort -V | tail -n1)"
+  local installed=1
+  if [[ -n "$label" ]]; then
+    log "softwareupdate -i \"$label\""
+    if sudo softwareupdate -i "$label" --verbose; then installed=0; fi
+  fi
+  rm -f "$flag"
+
+  # Fallback: instalador gráfico de Apple + espera a que el usuario lo complete.
+  if [[ "$installed" -ne 0 ]] || ! clt_present; then
+    warn "vía desatendida no disponible; abriendo el instalador gráfico de Apple…"
+    xcode-select --install >/dev/null 2>&1 || true
+    log "esperando a que termine la instalación de los Command Line Tools…"
+    until clt_present; do sleep 5; done
+  fi
+
+  clt_present || die "No se pudieron instalar los Command Line Tools de Xcode."
+  ok "Command Line Tools instalados ($(xcode-select -p))"
+}
+
 # ── Homebrew: instalar solo si falta ─────────────────────────────────────────
 brew_ensure() {                       # brew_ensure formula1 formula2 ...
   local f

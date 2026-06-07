@@ -9,6 +9,10 @@ source "$HERE/../lib/common.sh"
 
 step "Homebrew & Shell"
 
+# 0. Garantizar los Command Line Tools de Xcode (dependencia de Homebrew) ANTES
+#    de instalar brew. Idempotente: no-op si ya hay CLT o Xcode completo.
+ensure_clt
+
 # 1. Instalar Homebrew solo si falta (no interactivo, sin prompts).
 if [[ -x "$BREW" ]]; then
   ok "Homebrew ya instalado en $BREW"
