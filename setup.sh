@@ -12,6 +12,10 @@
 #
 # Un módulo = carpeta "NN. Nombre/" que contiene un "setup-*.sh".
 # Cada módulo también puede ejecutarse por separado.
+#
+# Si algún módulo a ejecutar usa sudo (02 Homebrew/CLT, 12 iOS), se pide la
+# contraseña UNA vez al inicio y se mantiene viva la sesión de sudo (no se
+# almacena: se usa el timestamp propio de sudo). --list y --dry-run no la piden.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -24,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     --skip)        SKIPS="${SKIPS}${2:-} "; shift 2 ;;
     --list|-l)     LIST=1; shift ;;
     --dry-run|-n)  DRY=1; shift ;;
-    -h|--help)     sed -n '3,16p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '3,18p' "$0"; exit 0 ;;
     [0-9][0-9])    ONLY="$1"; shift ;;
     *)             die "Opción no reconocida: '$1' (usa --help)" ;;
   esac
@@ -42,6 +46,19 @@ done
 [[ ${#mods[@]} -gt 0 ]] || die "No se encontraron módulos ('NN. Nombre/setup-*.sh') en $HERE."
 
 [[ "$LIST" == 1 ]] && echo "Módulos detectados:"
+
+# ── Cachear sudo una vez si algún módulo a ejecutar lo requiere ──────────────
+# Módulos que usan sudo (directa o internamente): 02 (Homebrew + CLT) y 12 (iOS).
+# Así se pide la contraseña al inicio y no a mitad del proceso. Nunca en list/dry.
+if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
+  for m in "${mods[@]}"; do
+    nn="$(basename "${m%%|*}")"; nn="${nn:0:2}"
+    [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
+    [[ -n "$FROM" && "$nn" < "$FROM" ]] && continue
+    case "$SKIPS" in *" $nn "*) continue ;; esac
+    case " 02 12 " in *" $nn "*) sudo_keep_alive; break ;; esac
+  done
+fi
 
 ran=0
 for m in "${mods[@]}"; do

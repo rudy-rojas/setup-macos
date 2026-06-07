@@ -65,6 +65,28 @@ append_once() {
   ok "añadido a $(basename "$file"): ${C_DIM}${line}${C_RST}"
 }
 
+# ── Privilegios: cachear sudo una sola vez ───────────────────────────────────
+# Pide la contraseña UNA vez y mantiene viva la credencial de sudo mientras corre
+# el setup, para que ni el install.sh de Homebrew ni softwareupdate/Xcode vuelvan
+# a pedirla a mitad del proceso. NO almacena la contraseña en ningún lado: se
+# apoya en el timestamp propio de sudo. Sin TTY (p. ej. CI) aborta con un mensaje
+# claro en vez de colgarse esperando una contraseña que nadie va a teclear.
+SUDO_KEEPALIVE_PID=""
+sudo_keep_alive_stop() {
+  [[ -n "${SUDO_KEEPALIVE_PID:-}" ]] && kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+  SUDO_KEEPALIVE_PID=""
+}
+sudo_keep_alive() {
+  need_cmd sudo || { warn "sudo no disponible; algunos pasos podrían fallar."; return 0; }
+  log "se pedirá tu contraseña una sola vez (Homebrew y los Command Line Tools la requieren)…"
+  sudo -v || die "Se requiere acceso sudo para instalar Homebrew y los Command Line Tools."
+  # Refresca el timestamp de sudo en segundo plano; se auto-termina si el proceso
+  # principal muere (kill -0 "$$") y el trap EXIT lo limpia en una salida normal.
+  ( while true; do sudo -n true 2>/dev/null; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &
+  SUDO_KEEPALIVE_PID=$!
+  trap 'sudo_keep_alive_stop' EXIT
+}
+
 # ── Command Line Tools de Xcode ──────────────────────────────────────────────
 # Homebrew necesita las CLT (clang, headers, git). Las instala SOLO si faltan,
 # de forma desatendida (softwareupdate) y, si eso no es posible, cae al instalador
