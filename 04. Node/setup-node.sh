@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 04. Node — fnm + Node LTS + pnpm (arch-aware).
-# fnm gestiona las versiones de Node; pnpm se instala por el método que soporta
-# cada arquitectura (el script standalone NO soporta Intel/darwin-x64).
-# NO se usa corepack: se retira del core de Node en la 25+.
+# fnm manages the Node versions; pnpm is installed via the method each
+# architecture supports (the standalone script does NOT support Intel/darwin-x64).
+# corepack is NOT used: it is being removed from the Node core in 25+.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -12,50 +12,50 @@ load_brew
 
 step "Node (fnm + pnpm)"
 
-# 1. fnm (gestor de versiones de Node).
+# 1. fnm (Node version manager).
 brew_ensure fnm
 
-# 2. Hook de fnm en ~/.zshrc (shell interactivo; --use-on-cd necesita el hook chpwd), una vez.
+# 2. fnm hook in ~/.zshrc (interactive shell; --use-on-cd needs the chpwd hook), once.
 append_once "$ZSHRC" 'eval "$(fnm env --use-on-cd --shell zsh)"'
 
-# 3. Activar fnm en la sesión actual del script (este script corre en BASH).
-#    Usamos --shell bash, NO zsh: el hook zsh de --use-on-cd emite 'autoload'/
-#    'add-zsh-hook' (builtins solo de zsh) y revientan en bash. El hook interactivo
-#    para zsh ya quedó en ~/.zshrc (paso 2); aquí solo necesitamos fnm en el PATH.
+# 3. Activate fnm in the current script session (this script runs in BASH).
+#    We use --shell bash, NOT zsh: the zsh hook for --use-on-cd emits 'autoload'/
+#    'add-zsh-hook' (zsh-only builtins) and blows up in bash. The interactive hook
+#    for zsh is already in ~/.zshrc (step 2); here we only need fnm on the PATH.
 eval "$(fnm env --shell bash)"
 
-# 4. Instalar Node LTS, activarlo y fijarlo como default.
-#    'fnm install' acepta --lts, pero 'fnm use'/'default' NO (al menos en 1.39).
-#    'install --lts' deja el alias 'lts-latest'; lo usamos para activar y fijar,
-#    con fallback a la versión instalada más alta si ese alias no existiera.
+# 4. Install Node LTS, activate it and pin it as the default.
+#    'fnm install' accepts --lts, but 'fnm use'/'default' do NOT (at least in 1.39).
+#    'install --lts' leaves the 'lts-latest' alias; we use it to activate and pin,
+#    with a fallback to the highest installed version if that alias did not exist.
 log "fnm install --lts…"
 fnm install --lts
 if fnm use lts-latest 2>/dev/null; then
   fnm default lts-latest
 else
   NODE_LTS="$(fnm ls 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n1)"
-  [[ -n "$NODE_LTS" ]] || die "No pude determinar la versión de Node instalada por fnm."
+  [[ -n "$NODE_LTS" ]] || die "Could not determine the Node version installed by fnm."
   fnm use "$NODE_LTS"
   fnm default "$NODE_LTS"
 fi
 ok "node $(node -v) / npm $(npm -v)"
 
-# 5. pnpm — método según arquitectura.
+# 5. pnpm — method depends on architecture.
 if need_cmd pnpm; then
-  ok "pnpm ya instalado ($(pnpm -v))"
+  ok "pnpm already installed ($(pnpm -v))"
 elif [[ "$ARCH" == "arm64" ]]; then
-  log "Instalando pnpm (script standalone, independiente de Node)…"
+  log "Installing pnpm (standalone script, independent of Node)…"
   curl -fsSL https://get.pnpm.io/install.sh | sh -
 else
-  log "Intel (darwin-x64): instalando pnpm vía brew (el script standalone no lo soporta)…"
+  log "Intel (darwin-x64): installing pnpm via brew (the standalone script does not support it)…"
   brew_ensure pnpm
 fi
 
-# 6. Verificar.
+# 6. Verify.
 if need_cmd pnpm; then
   ok "pnpm $(pnpm -v)"
 else
-  warn "pnpm instalado; abre una terminal nueva para que PNPM_HOME entre en el PATH."
+  warn "pnpm installed; open a new terminal so PNPM_HOME is added to the PATH."
 fi
 
-ok "Módulo Node completado."
+ok "Node module completed."

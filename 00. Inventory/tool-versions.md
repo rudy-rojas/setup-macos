@@ -1,8 +1,8 @@
-# Inventario de herramientas — snapshot 2026-06-06 15:37
+# Tool inventory — snapshot 2026-06-06 15:37
 
-**Sistema:** macOS 15.7.1 (x86_64, Intel — Homebrew en /usr/local)
+**System:** macOS 15.7.1 (x86_64, Intel — Homebrew at /usr/local)
 
-| Herramienta | Versión | Ruta / Gestor |
+| Tool | Version | Path / Manager |
 |---|---|---|
 | brew | 5.1.15 | /usr/local/bin/brew |
 | node | v24.11.1 | /usr/local/bin/node |
@@ -19,9 +19,9 @@
 | eas | eas-cli/16.28.0 darwin-x64 node-v24.11.1 | /usr/local/bin/eas |
 | pod | 1.16.2 | /usr/local/bin/pod |
 | adb | 1.0.41 | /usr/local/share/android-commandlinetools/platform-tools/adb |
-| gh | (no instalado) | — |
-| watchman | (no instalado) | — |
-| redis-cli | (no instalado) | — |
-| uv | (no instalado) | — |
-| fnm | (no instalado) | — |
-| docker | (no instalado) | — |
+| gh | (not installed) | — |
+| watchman | (not installed) | — |
+| redis-cli | (not installed) | — |
+| uv | (not installed) | — |
+| fnm | (not installed) | — |
+| docker | (not installed) | — |

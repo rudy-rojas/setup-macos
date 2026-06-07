@@ -1,21 +1,21 @@
 # 04 · Node (fnm + pnpm)
 
-Gestiona Node con **fnm** (rápido, la filosofía de uv para Node) e instala **pnpm**.
+Manages Node with **fnm** (fast, the uv philosophy for Node) and installs **pnpm**.
 
-- `brew install fnm` + hook `eval "$(fnm env --use-on-cd --shell zsh)"` en `~/.zshrc` (una sola vez).
-- Instala el LTS (`fnm install --lts`), lo **activa** (`fnm use --lts`) y lo fija como default.
+- `brew install fnm` + hook `eval "$(fnm env --use-on-cd --shell zsh)"` in `~/.zshrc` (exactly once).
+- Installs the LTS (`fnm install --lts`), **activates** it (`fnm use --lts`) and pins it as the default.
 - **pnpm arch-aware**:
-  - **Apple Silicon** → script standalone (`get.pnpm.io/install.sh`), independiente de Node (sobrevive a cambios de versión con fnm).
-  - **Intel (darwin-x64)** → `brew install pnpm` (el script standalone **no** soporta darwin-x64).
+  - **Apple Silicon** → standalone script (`get.pnpm.io/install.sh`), independent of Node (survives version changes with fnm).
+  - **Intel (darwin-x64)** → `brew install pnpm` (the standalone script does **not** support darwin-x64).
 
-## Uso
+## Usage
 ```bash
 ./setup.sh 04
 ```
 
-## Notas
-- **No** se usa `corepack`: el TSC de Node votó retirarlo del core en la **25+** (en Node 24 sigue presente pero pnpm ya lo trata como último recurso).
-- **No** usar `fnm default lts-latest`: ese alias no existe hasta fijar un default explícito y falla con *"Can't find requested version"* (fnm#1203). Por eso se usa `fnm default "$(fnm current)"`.
-- `fnm install --lts` **no** activa el LTS en la shell actual → por eso el `fnm use --lts`.
-- En Apple Silicon, tras el script standalone abre una terminal nueva para tener `PNPM_HOME` en el PATH.
-- pnpm 10+/11 auto-cambia a la versión fijada en `packageManager` de cada `package.json` (reemplaza el rol de corepack).
+## Notes
+- `corepack` is **not** used: the Node TSC voted to remove it from the core in **25+** (in Node 24 it is still present but pnpm already treats it as a last resort).
+- Do **not** use `fnm default lts-latest`: that alias does not exist until an explicit default is pinned and it fails with *"Can't find requested version"* (fnm#1203). That is why `fnm default "$(fnm current)"` is used.
+- `fnm install --lts` does **not** activate the LTS in the current shell → that is why `fnm use --lts` is needed.
+- On Apple Silicon, after the standalone script open a new terminal to get `PNPM_HOME` on the PATH.
+- pnpm 10+/11 auto-switches to the version pinned in `packageManager` of each `package.json` (replaces corepack's role).

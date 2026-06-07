@@ -1,19 +1,19 @@
 # 05 · Git & GitHub
 
-Instala git + GitHub CLI, aplica la config global de TNB y autentica `gh` solo si falta.
+Installs git + GitHub CLI, applies the TNB global config and authenticates `gh` only if missing.
 
 - `brew install git gh jq`.
-- `git config --global`: identidad, `init.defaultBranch main`, `pull.rebase false`, `core.editor "code --wait"`.
-- `gh`: login web **solo si** `gh auth status` falla (nunca re-pregunta a un usuario ya autenticado). En una corrida orquestada (`./setup.sh`) este login se **difiere al final**, tras instalar todo, para no interrumpir el proceso; en solitario (`./setup.sh 05`) se hace en el momento.
+- `git config --global`: identity, `init.defaultBranch main`, `pull.rebase false`, `core.editor "code --wait"`.
+- `gh`: web login **only if** `gh auth status` fails (never re-prompts an already authenticated user). In an orchestrated run (`./setup.sh`) this login is **deferred to the end**, after everything is installed, so as not to interrupt the process; when run alone (`./setup.sh 05`) it happens right away.
 
-## Uso
+## Usage
 ```bash
 ./setup.sh 05
-# identidad personalizada:
-GIT_USER_NAME="Tu Nombre" GIT_USER_EMAIL="tu@correo.com" ./setup.sh 05
+# custom identity:
+GIT_USER_NAME="Your Name" GIT_USER_EMAIL="you@email.com" ./setup.sh 05
 ```
 
-## Notas
-- Identidad por defecto: `TheNationalBuilders <tnb@thenationalbuilders.com>` (override con las env vars).
-- `gh auth login --web` abre el navegador (paso interactivo).
-- `gh auth status` se acota a `--hostname github.com` para que un host enterprise con token caducado no dispare un re-login.
+## Notes
+- Default identity: `TheNationalBuilders <tnb@thenationalbuilders.com>` (override with the env vars).
+- `gh auth login --web` opens the browser (interactive step).
+- `gh auth status` is scoped to `--hostname github.com` so that an enterprise host with an expired token does not trigger a re-login.

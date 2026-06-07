@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 # =============================================================================
-# setup.sh — orquestador idempotente de setup-macos
+# setup.sh — idempotent orchestrator for setup-macos
 #
-# Uso:
-#   ./setup.sh                  Corre todos los módulos en orden
-#   ./setup.sh 04               Corre solo el módulo 04
-#   ./setup.sh --from 03        Desde el módulo 03 en adelante
+# Usage:
+#   ./setup.sh                  Run all modules in order
+#   ./setup.sh 04               Run only module 04
+#   ./setup.sh --from 03        From module 03 onward
 #   ./setup.sh --skip 11 --skip 12
-#   ./setup.sh --list           Lista los módulos detectados
-#   ./setup.sh --dry-run        Muestra qué correría, sin ejecutar
+#   ./setup.sh --list           List the detected modules
+#   ./setup.sh --dry-run        Show what would run, without executing
 #
-# Un módulo = carpeta "NN. Nombre/" que contiene un "setup-*.sh".
-# Cada módulo también puede ejecutarse por separado.
+# A module = folder "NN. Name/" that contains a "setup-*.sh".
+# Each module can also be run separately.
 #
-# Si algún módulo a ejecutar usa sudo (02 Homebrew/CLT, 11 Android, 12 iOS), se
-# pide la contraseña UNA vez al inicio. Mientras dura el setup se instala un
-# drop-in temporal en /etc/sudoers.d (validado con visudo) para que tampoco la
-# pidan los instaladores .pkg de los casks; se elimina SIEMPRE al salir.
-# --list y --dry-run no piden nada.
+# If any module to run uses sudo (02 Homebrew/CLT, 11 Android, 12 iOS), the
+# password is asked ONCE at the start. For the duration of setup, a temporary
+# drop-in is installed in /etc/sudoers.d (validated with visudo) so that the
+# cask .pkg installers don't ask for it either; it is ALWAYS removed on exit.
+# --list and --dry-run ask for nothing.
 #
-# Las autenticaciones INTERACTIVAS de apps (p. ej. el login web de GitHub) se
-# difieren al FINAL, tras instalar todo, para no interrumpir el proceso.
+# INTERACTIVE app authentications (e.g. the GitHub web login) are deferred to
+# the END, after everything is installed, so they don't interrupt the process.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 source "$HERE/lib/common.sh"
 
-# Configuración local (gitignored): si existe setup.env, se carga y se EXPORTA
-# todo (set -a) para que los módulos hereden GIT_USER_*, PG_DATABASES,
-# MYSQL_ROOT_PASSWORD, INSTALL_IOS, etc. sin prompts a media instalación.
-# Plantilla: setup.env.example. Sin el archivo, se usan los valores por defecto.
+# Local configuration (gitignored): if setup.env exists, it is sourced and
+# EXPORTED entirely (set -a) so the modules inherit GIT_USER_*, PG_DATABASES,
+# MYSQL_ROOT_PASSWORD, INSTALL_IOS, etc. without prompts mid-install.
+# Template: setup.env.example. Without the file, the defaults are used.
 if [[ -f "$HERE/setup.env" ]]; then
   set -a; source "$HERE/setup.env"; set +a
-  ok "configuración cargada desde setup.env"
+  ok "configuration loaded from setup.env"
 fi
 
 ONLY=""; FROM=""; DRY=0; LIST=0; SKIPS=" "
@@ -44,39 +44,39 @@ while [[ $# -gt 0 ]]; do
     --dry-run|-n)  DRY=1; shift ;;
     -h|--help)     sed -n '3,23p' "$0"; exit 0 ;;
     [0-9][0-9])    ONLY="$1"; shift ;;
-    *)             die "Opción no reconocida: '$1' (usa --help)" ;;
+    *)             die "Unrecognized option: '$1' (use --help)" ;;
   esac
 done
 
-# ── Descubrir módulos: carpetas "NN. *" con un setup-*.sh dentro ─────────────
+# ── Discover modules: folders "NN. *" with a setup-*.sh inside ───────────────
 mods=()
 for dir in "$HERE"/[0-9][0-9].*/; do
   [[ -d "$dir" ]] || continue
   script=""
   for s in "$dir"setup-*.sh; do [[ -f "$s" ]] && { script="$s"; break; }; done
-  [[ -n "$script" ]] || continue          # p. ej. "00. Inventory" no tiene script
+  [[ -n "$script" ]] || continue          # e.g. "00. Inventory" has no script
   mods+=("$dir|$script")
 done
-[[ ${#mods[@]} -gt 0 ]] || die "No se encontraron módulos ('NN. Nombre/setup-*.sh') en $HERE."
+[[ ${#mods[@]} -gt 0 ]] || die "No modules found ('NN. Name/setup-*.sh') in $HERE."
 
-[[ "$LIST" == 1 ]] && echo "Módulos detectados:"
+[[ "$LIST" == 1 ]] && echo "Detected modules:"
 
-# ── Preparación de la corrida (solo si vamos a ejecutar de verdad) ───────────
+# ── Run preparation (only if we are actually going to execute) ───────────────
 if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
-  # Marca para los módulos: corren orquestados, NO en solitario. Cada módulo es
-  # un paso de varios, así que ninguno debe anunciar "instalación completa" — eso
-  # lo declara setup.sh al final (p. ej. el módulo 01 acota su resumen).
+  # Marker for the modules: they run orchestrated, NOT standalone. Each module is
+  # one step of many, so none should announce "installation complete" — that is
+  # declared by setup.sh at the end (e.g. module 01 narrows its summary).
   export SETUP_ORCHESTRATED=1
 
-  # Cola de autenticaciones diferidas: los logins interactivos (GitHub, etc.) se
-  # ejecutan al FINAL, tras instalar todo, para no interrumpir el proceso. Un
-  # único trap EXIT cierra la sesión de sudo (borra el drop-in) y borra la cola.
+  # Deferred authentication queue: interactive logins (GitHub, etc.) run at the
+  # END, after everything is installed, so they don't interrupt the process. A
+  # single EXIT trap closes the sudo session (removes the drop-in) and clears the queue.
   SETUP_AUTH_QUEUE="$(mktemp -t setup-macos-auth)"; export SETUP_AUTH_QUEUE
   trap 'sudo_session_end; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
 
-  # Abre la sesión de sudo (una sola contraseña) si algún módulo a ejecutar la
-  # necesita: 02 (Homebrew/CLT), 11 (Android: cask zulu@17 .pkg) y 12 (iOS). El
-  # sudo NO se difiere: hace falta DURANTE la instalación.
+  # Open the sudo session (a single password) if any module to run needs it:
+  # 02 (Homebrew/CLT), 11 (Android: cask zulu@17 .pkg) and 12 (iOS). The sudo is
+  # NOT deferred: it is needed DURING the installation.
   for m in "${mods[@]}"; do
     nn="$(basename "${m%%|*}")"; nn="${nn:0:2}"
     [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
@@ -93,22 +93,22 @@ for m in "${mods[@]}"; do
 
   [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
   [[ -n "$FROM" && "$nn" < "$FROM" ]] && continue
-  case "$SKIPS" in *" $nn "*) warn "saltando $name"; continue ;; esac
+  case "$SKIPS" in *" $nn "*) warn "skipping $name"; continue ;; esac
 
   if [[ "$LIST" == 1 ]]; then printf '  %s  →  %s\n' "$nn" "$name"; continue; fi
   if [[ "$DRY"  == 1 ]]; then printf '  (dry-run) %s\n' "$script"; continue; fi
 
-  step "Módulo $name"
+  step "Module $name"
   bash "$script"
-  ok "Módulo $name completado"
+  ok "Module $name completed"
   ran=$((ran + 1))
 done
 
 [[ "$LIST" == 1 || "$DRY" == 1 ]] && exit 0
-[[ -n "$ONLY" && "$ran" == 0 ]] && die "No existe el módulo '$ONLY'."
+[[ -n "$ONLY" && "$ran" == 0 ]] && die "Module '$ONLY' does not exist."
 
-# Autenticaciones interactivas diferidas (GitHub, etc.): al final, ya instalado todo.
+# Deferred interactive authentications (GitHub, etc.): at the end, everything installed.
 run_deferred_auth
 
-step "Instalación completa"
-ok "setup-macos finalizado — $ran módulo(s) ejecutado(s)."
+step "Installation complete"
+ok "setup-macos finished — $ran module(s) executed."

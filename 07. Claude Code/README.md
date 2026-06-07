@@ -1,16 +1,16 @@
 # 07 · Claude Code
 
-Instala Claude Code con el **instalador nativo oficial**.
+Installs Claude Code with the **official native installer**.
 
-- `curl -fsSL https://claude.ai/install.sh | bash` → binario en `~/.local/bin/claude` (auto-actualizable).
-- Asegura `~/.local/bin` en el PATH; corre `claude --version` y `claude doctor`.
+- `curl -fsSL https://claude.ai/install.sh | bash` → binary at `~/.local/bin/claude` (self-updating).
+- Ensures `~/.local/bin` on the PATH; runs `claude --version` and `claude doctor`.
 
-## Uso
+## Usage
 ```bash
 ./setup.sh 07
 ```
 
-## Notas
-- Requiere una cuenta de **pago** (Pro/Max/Team/Enterprise/Console) o un proveedor API (Bedrock/Vertex/Foundry); el plan gratis de Claude.ai **no** da acceso.
-- **No** mezclar con la versión npm (`@anthropic-ai/claude-code`) ni con el cask de Homebrew: pueden ensombrecer el binario nativo en el PATH. `claude doctor` lo detecta.
-- La primera vez, ejecuta `claude` en un proyecto para abrir el login en el navegador.
+## Notes
+- Requires a **paid** account (Pro/Max/Team/Enterprise/Console) or an API provider (Bedrock/Vertex/Foundry); the free Claude.ai plan does **not** grant access.
+- Do **not** mix with the npm version (`@anthropic-ai/claude-code`) or the Homebrew cask: they can shadow the native binary on the PATH. `claude doctor` detects this.
+- The first time, run `claude` in a project to open the login in the browser.

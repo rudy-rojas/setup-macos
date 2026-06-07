@@ -1,20 +1,20 @@
 # 06 · VS Code
 
-Instala VS Code, las extensiones del stack TNB (idempotente) y aplica ajustes **sin pisar** los tuyos.
+Installs VS Code, the TNB stack extensions (idempotent) and applies settings **without clobbering** yours.
 
-- Cask con `--adopt` (adopta una copia ya arrastrada a `/Applications` en lugar de fallar).
-- Extensiones: `claude-code`, `eslint`, `prettier`, `tailwindcss`, `expo-tools` (guard con `grep -qix`).
-- `settings.json`: merge profundo con `jq` (`.[0] * .[1]`) → tus claves se preservan; solo gestionamos *format on save*, Prettier por defecto y ESLint `fixAll: explicit`.
+- Cask with `--adopt` (adopts a copy already dragged into `/Applications` instead of failing).
+- Extensions: `claude-code`, `eslint`, `prettier`, `tailwindcss`, `expo-tools` (guarded with `grep -qix`).
+- `settings.json`: deep merge with `jq` (`.[0] * .[1]`) → your keys are preserved; we only manage *format on save*, Prettier as the default and ESLint `fixAll: explicit`.
 
-## Uso
+## Usage
 ```bash
 ./setup.sh 06
 ```
 
-## Notas
-- Si tu `settings.json` tiene `//` comentarios o comas finales (JSONc), `jq` no lo parsea: el módulo **no lo toca** y avisa.
-- `source.fixAll.eslint` usa el string `"explicit"` (el booleano está deprecado desde VS Code ~1.85).
-- La lista completa de tus **52** extensiones está en `00. Inventory/vscode-extensions.txt`:
+## Notes
+- If your `settings.json` has `//` comments or trailing commas (JSONc), `jq` cannot parse it: the module **leaves it untouched** and warns.
+- `source.fixAll.eslint` uses the string `"explicit"` (the boolean has been deprecated since VS Code ~1.85).
+- The complete list of your **52** extensions is in `00. Inventory/vscode-extensions.txt`:
   ```bash
   while read -r e; do code --install-extension "${e%@*}"; done < "00. Inventory/vscode-extensions.txt"
   ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 03. Python — uv + Python 3.12 como python3 por defecto.
-# uv gestiona los intérpretes; los shims viven en ~/.local/bin (igual en arm64/x86_64).
+# 03. Python — uv + Python 3.12 as the default python3.
+# uv manages the interpreters; the shims live in ~/.local/bin (same on arm64/x86_64).
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -10,30 +10,30 @@ load_brew
 
 step "Python (uv)"
 
-# 1. Instalar uv con el instalador oficial (no necesita Python previo).
+# 1. Install uv with the official installer (no prior Python needed).
 if need_cmd uv; then
-  ok "uv ya instalado ($(uv --version 2>/dev/null))"
+  ok "uv already installed ($(uv --version 2>/dev/null))"
 else
-  log "Instalando uv (astral.sh)…"
+  log "Installing uv (astral.sh)…"
   curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 
-# 2. Cargar uv en la sesión actual y asegurar ~/.local/bin en el PATH.
+# 2. Load uv in the current session and ensure ~/.local/bin is on the PATH.
 [[ -f "$HOME/.local/bin/env" ]] && . "$HOME/.local/bin/env"
 export PATH="$HOME/.local/bin:$PATH"
-need_cmd uv || die "uv no quedó disponible en el PATH."
+need_cmd uv || die "uv did not become available on the PATH."
 ok "uv $(uv --version 2>/dev/null | awk '{print $2}')"
 
-# 3. Instalar Python 3.12 y dejarlo como default (crea shims python/python3).
+# 3. Install Python 3.12 and set it as the default (creates python/python3 shims).
 log "uv python install 3.12 --default…"
 uv python install 3.12 --default
-# Garantiza ~/.local/bin en el PATH de shells FUTUROS (idempotente; tolera uv antiguos).
-uv python update-shell 2>/dev/null || warn "uv python update-shell no disponible; verifica que ~/.local/bin esté en tu PATH."
+# Ensures ~/.local/bin on the PATH of FUTURE shells (idempotent; tolerates old uv versions).
+uv python update-shell 2>/dev/null || warn "uv python update-shell unavailable; make sure ~/.local/bin is on your PATH."
 hash -r 2>/dev/null || true
 
-# 4. Verificar.
+# 4. Verify.
 ok "python3 → $(command -v python3)"
 python3 --version
 uv python list
 
-ok "Módulo Python completado."
+ok "Python module completed."

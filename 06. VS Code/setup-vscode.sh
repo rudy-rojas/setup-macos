@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 06. VS Code — cask + extensiones (idempotente) + settings (merge sin pisar).
-# El merge de settings.json usa jq (.[0]*.[1]): preserva tus claves, gestiona
-# solo las nuestras (format on save, Prettier, ESLint).
+# 06. VS Code — cask + extensions (idempotent) + settings (merge without clobbering).
+# The settings.json merge uses jq (.[0]*.[1]): it preserves your keys and manages
+# only ours (format on save, Prettier, ESLint).
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -11,21 +11,21 @@ load_brew
 
 step "VS Code"
 
-# 1. VS Code (--adopt: adopta una copia arrastrada a /Applications en vez de fallar).
+# 1. VS Code (--adopt: adopts a copy already dragged into /Applications instead of failing).
 if "$BREW" list --cask visual-studio-code >/dev/null 2>&1; then
-  ok "VS Code ya instalado"
+  ok "VS Code already installed"
 else
   log "brew install --cask --adopt visual-studio-code"
   "$BREW" install --cask --adopt visual-studio-code
 fi
 
-# 2. Asegurar el CLI 'code' en el PATH (lo provee el cask; fallback al bundle).
+# 2. Ensure the 'code' CLI is on the PATH (provided by the cask; fallback to the bundle).
 command -v code >/dev/null 2>&1 || export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"
-command -v code >/dev/null 2>&1 || die "El CLI 'code' no está disponible aún (abre VS Code una vez y reintenta)."
+command -v code >/dev/null 2>&1 || die "The 'code' CLI is not available yet (open VS Code once and retry)."
 
-# 3. Extensiones esenciales del stack TNB (idempotente).
+# 3. Essential extensions of the TNB stack (idempotent).
 EXTS=(
-  anthropic.claude-code        # integración con Claude Code
+  anthropic.claude-code        # Claude Code integration
   dbaeumer.vscode-eslint       # ESLint
   esbenp.prettier-vscode       # Prettier
   bradlc.vscode-tailwindcss    # Tailwind (PLUS)
@@ -33,13 +33,13 @@ EXTS=(
 )
 for ext in "${EXTS[@]}"; do
   if code --list-extensions | grep -qix "$ext"; then
-    ok "ext: $ext (ya)"
+    ok "ext: $ext (already)"
   else
     log "code --install-extension $ext"; code --install-extension "$ext"
   fi
 done
 
-# 4. settings.json: merge profundo con jq (preserva lo existente).
+# 4. settings.json: deep merge with jq (preserves what already exists).
 need_cmd jq || brew_ensure jq
 SETTINGS="$HOME/Library/Application Support/Code/User/settings.json"
 mkdir -p "$(dirname "$SETTINGS")"
@@ -47,10 +47,10 @@ mkdir -p "$(dirname "$SETTINGS")"
 DESIRED='{"editor.formatOnSave":true,"editor.defaultFormatter":"esbenp.prettier-vscode","editor.codeActionsOnSave":{"source.fixAll.eslint":"explicit"},"eslint.format.enable":false,"[javascript]":{"editor.defaultFormatter":"esbenp.prettier-vscode"},"[typescript]":{"editor.defaultFormatter":"esbenp.prettier-vscode"},"[typescriptreact]":{"editor.defaultFormatter":"esbenp.prettier-vscode"},"[json]":{"editor.defaultFormatter":"esbenp.prettier-vscode"}}'
 tmp="$(mktemp)"
 if jq -s '.[0] * .[1]' "$SETTINGS" <(printf '%s' "$DESIRED") > "$tmp" 2>/dev/null; then
-  mv "$tmp" "$SETTINGS"; ok "settings.json actualizado (merge: tus claves preservadas)"
+  mv "$tmp" "$SETTINGS"; ok "settings.json updated (merge: your keys preserved)"
 else
   rm -f "$tmp"
-  warn "settings.json no es JSON estricto (¿// comentarios?); no lo modifiqué. Aplica los ajustes a mano o quita los comentarios."
+  warn "settings.json is not strict JSON (// comments?); left it unchanged. Apply the settings by hand or remove the comments."
 fi
 
-ok "Módulo VS Code completado."
+ok "VS Code module completed."

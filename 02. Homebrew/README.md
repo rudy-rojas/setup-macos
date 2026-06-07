@@ -1,22 +1,22 @@
 # 02 · Homebrew
 
-Instala Homebrew **arch-aware** y lo deja en el PATH de zsh, de forma idempotente.
+Installs Homebrew **arch-aware** and adds it to the zsh PATH, idempotently.
 
-- **Garantiza primero los Command Line Tools de Xcode** (`ensure_clt`), dependencia de Homebrew: vía desatendida (`softwareupdate`) con fallback al instalador gráfico (`xcode-select --install`). No-op si ya hay CLT o Xcode completo.
-- Detecta el prefijo por arquitectura: **arm64 → `/opt/homebrew`**, **x86_64 → `/usr/local`** (vía `lib/common.sh`).
-- Instala solo si falta (`NONINTERACTIVE=1`, sin prompts); re-ejecutar es no-op.
-- Añade `eval "$(<prefix>/bin/brew shellenv)"` a `${ZDOTDIR:-$HOME}/.zprofile` **una sola vez** (`append_once`).
-- Activa brew en la sesión actual y deja CLI base: `jq`, `tree` (jq lo usa el módulo 06).
+- **Ensures the Xcode Command Line Tools first** (`ensure_clt`), a Homebrew dependency: unattended path (`softwareupdate`) with a fallback to the graphical installer (`xcode-select --install`). No-op if CLT or the full Xcode is already present.
+- Detects the prefix by architecture: **arm64 → `/opt/homebrew`**, **x86_64 → `/usr/local`** (via `lib/common.sh`).
+- Installs only if missing (`NONINTERACTIVE=1`, no prompts); re-running is a no-op.
+- Adds `eval "$(<prefix>/bin/brew shellenv)"` to `${ZDOTDIR:-$HOME}/.zprofile` **exactly once** (`append_once`).
+- Activates brew in the current session and installs the base CLI tools: `jq`, `tree` (jq is used by module 06).
 
-## Uso
+## Usage
 ```bash
-./setup.sh 02                       # desde la raíz del repo
-"02. Homebrew/setup-homebrew.sh"    # o directo
+./setup.sh 02                       # from the repo root
+"02. Homebrew/setup-homebrew.sh"    # or directly
 ```
 
-## Notas
-- En **Apple Silicon**, sin la línea de `shellenv` aparece `zsh: command not found: brew` porque `/opt/homebrew/bin` no está en el PATH por defecto — este módulo lo resuelve.
-- macOS mínimo soportado por Homebrew: **14.0 (Sonoma)**.
-- Los Command Line Tools de Xcode se instalan automáticamente en el paso 0 (puede tardar varios minutos y necesita red/`sudo`). Si la vía desatendida no está disponible, se abre el instalador gráfico de Apple y el script espera a que termines.
-- El **Xcode completo** (~12 GB, p. ej. desde un `Xcode_*.xip`) no se toca aquí; eso vive en el módulo **`12. iOS`** (opt-in), que es donde de verdad hace falta.
-- El set completo de paquetes que usas hoy está en **`00. Inventory/Brewfile`** → reproducible con `brew bundle install --file="00. Inventory/Brewfile"`.
+## Notes
+- On **Apple Silicon**, without the `shellenv` line you get `zsh: command not found: brew` because `/opt/homebrew/bin` is not on the PATH by default — this module fixes that.
+- Minimum macOS supported by Homebrew: **14.0 (Sonoma)**.
+- The Xcode Command Line Tools are installed automatically in step 0 (it can take several minutes and needs network/`sudo`). If the unattended path is unavailable, Apple's graphical installer opens and the script waits for you to finish.
+- The **full Xcode** (~12 GB, e.g. from an `Xcode_*.xip`) is not touched here; that lives in the **`12. iOS`** module (opt-in), which is where it is actually needed.
+- The complete set of packages you use today is in **`00. Inventory/Brewfile`** → reproducible with `brew bundle install --file="00. Inventory/Brewfile"`.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 10. MySQL (brew + brew services) + DBeaver + panel de servicios.
-# Sin secretos en el repo: la contraseña de root se pasa por MYSQL_ROOT_PASSWORD.
+# 10. MySQL (brew + brew services) + DBeaver + services panel.
+# No secrets in the repo: the root password is passed via MYSQL_ROOT_PASSWORD.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -13,34 +13,34 @@ step "MySQL + DBeaver"
 brew_ensure mysql
 service_ensure mysql
 
-# mysql/mysqladmin al PATH de la sesión (la fórmula los expone vía brew shellenv,
-# pero lo reforzamos por si el bin es keg-only en alguna versión).
+# mysql/mysqladmin onto the session PATH (the formula exposes them via brew shellenv,
+# but we reinforce it in case the bin is keg-only in some version).
 MYSQL_BIN="$("$BREW" --prefix mysql)/bin"
 export PATH="$MYSQL_BIN:$PATH"
 
-# Esperar a que el servidor arranque (ping no requiere credenciales válidas).
-log "esperando a que MySQL arranque…"
+# Wait for the server to start (ping does not require valid credentials).
+log "waiting for MySQL to start…"
 tries=0
 until mysqladmin ping --silent >/dev/null 2>&1; do
-  tries=$((tries + 1)); [ "$tries" -ge 30 ] && { warn "MySQL no respondió tras 30s."; break; }; sleep 1
+  tries=$((tries + 1)); [ "$tries" -ge 30 ] && { warn "MySQL did not respond after 30s."; break; }; sleep 1
 done
 
-# (Opcional) fijar la contraseña de root si se indica MYSQL_ROOT_PASSWORD.
+# (Optional) set the root password if MYSQL_ROOT_PASSWORD is provided.
 if [[ -n "${MYSQL_ROOT_PASSWORD:-}" ]]; then
   if mysql -u root -e "SELECT 1" >/dev/null 2>&1; then
     mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;"
-    ok "contraseña de root de MySQL establecida"
+    ok "MySQL root password set"
   elif MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root -e "SELECT 1" >/dev/null 2>&1; then
-    ok "root de MySQL ya usa la contraseña indicada"
+    ok "MySQL root already uses the provided password"
   else
-    warn "No pude conectar a MySQL (ni sin contraseña ni con MYSQL_ROOT_PASSWORD). Revísalo a mano."
+    warn "Could not connect to MySQL (neither without a password nor with MYSQL_ROOT_PASSWORD). Check it manually."
   fi
 else
-  warn "MySQL quedó SIN contraseña de root (default de brew). Fíjala con:"
-  warn "  MYSQL_ROOT_PASSWORD='...' ./setup.sh 10   (o corre 'mysql_secure_installation')"
+  warn "MySQL was left WITHOUT a root password (brew default). Set it with:"
+  warn "  MYSQL_ROOT_PASSWORD='...' ./setup.sh 10   (or run 'mysql_secure_installation')"
 fi
 
-# DBeaver (cliente GUI) + panel de servicios brew en la barra de menú.
+# DBeaver (GUI client) + brew services panel in the menu bar.
 cask_ensure dbeaver-community brewservicesmenubar
 
-ok "Módulo MySQL + DBeaver completado."
+ok "MySQL + DBeaver module completed."

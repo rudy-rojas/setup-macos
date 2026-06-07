@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 09. Redis — fórmula de brew + servicio (lo usa Bull/colas en tnb-backend).
+# 09. Redis — brew formula + service (used by Bull/queues in tnb-backend).
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -9,15 +9,15 @@ load_brew
 
 step "Redis"
 
-# La FÓRMULA 'redis' (no el cask redis-stack: ese NO lo gestiona brew services).
+# The 'redis' FORMULA (not the redis-stack cask: that one is NOT managed by brew services).
 brew_ensure redis
 service_ensure redis
 
-# Verificar.
+# Verify.
 if redis-cli ping 2>/dev/null | grep -qi PONG; then
-  ok "redis responde PONG"
+  ok "redis responds PONG"
 else
-  warn "redis aún no respondió a PING (puede tardar un instante tras arrancar)."
+  warn "redis has not responded to PING yet (it may take a moment after starting)."
 fi
 
-ok "Módulo Redis completado."
+ok "Redis module completed."

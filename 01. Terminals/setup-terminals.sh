@@ -1069,9 +1069,9 @@ verify_install() {
 
 # ── 13. Summary ─────────────────────────────────────────────────────────────
 print_summary() {
-  # Si corre orquestado por setup.sh (SETUP_ORCHESTRATED=1), esto es solo UN
-  # módulo de varios: NO anunciar "Installation complete" (eso lo hace setup.sh
-  # al terminar TODO). Acotar el título a la configuración de terminales.
+  # When run orchestrated by setup.sh (SETUP_ORCHESTRATED=1), this is just ONE
+  # module of several: do NOT announce "Installation complete" (setup.sh does that
+  # when EVERYTHING finishes). Scope the title to the terminal configuration.
   local mid='║          ✓  Installation complete          ║'
   if [[ "${SETUP_ORCHESTRATED:-0}" == "1" ]]; then
     mid='║         ✓  Terminal setup complete         ║'

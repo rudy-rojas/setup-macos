@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 02. Homebrew — instala Homebrew (arch-aware) y lo deja en el PATH de zsh.
-# Idempotente: instala solo si falta y añade la línea de shellenv una sola vez.
+# 02. Homebrew — installs Homebrew (arch-aware) and adds it to the zsh PATH.
+# Idempotent: installs only if missing and adds the shellenv line exactly once.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -9,30 +9,30 @@ source "$HERE/../lib/common.sh"
 
 step "Homebrew & Shell"
 
-# 0. Garantizar los Command Line Tools de Xcode (dependencia de Homebrew) ANTES
-#    de instalar brew. Idempotente: no-op si ya hay CLT o Xcode completo.
+# 0. Ensure the Xcode Command Line Tools (a Homebrew dependency) BEFORE
+#    installing brew. Idempotent: no-op if CLT or the full Xcode is already present.
 ensure_clt
 
-# 1. Instalar Homebrew solo si falta (no interactivo, sin prompts).
+# 1. Install Homebrew only if missing (non-interactive, no prompts).
 if [[ -x "$BREW" ]]; then
-  ok "Homebrew ya instalado en $BREW"
+  ok "Homebrew already installed at $BREW"
 else
-  log "Instalando Homebrew en $BREW_PREFIX (no interactivo)…"
+  log "Installing Homebrew at $BREW_PREFIX (non-interactive)…"
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  [[ -x "$BREW" ]] || die "La instalación de Homebrew no dejó el binario en $BREW."
+  [[ -x "$BREW" ]] || die "The Homebrew installation did not place the binary at $BREW."
 fi
 
-# 2. Dejar 'brew shellenv' en el login de zsh (respeta ZDOTDIR), exactamente una vez.
-#    Usa la ruta absoluta de brew para que arm64/x86_64 generen su línea correcta.
+# 2. Add 'brew shellenv' to the zsh login (respects ZDOTDIR), exactly once.
+#    Uses the absolute brew path so arm64/x86_64 generate their correct line.
 append_once "$ZPROFILE" "eval \"\$($BREW shellenv)\""
 
-# 3. Activar brew en la sesión actual del script (sin reabrir terminal).
+# 3. Activate brew in the current script session (no need to reopen the terminal).
 load_brew
-ok "brew $("$BREW" --version | head -1 | awk '{print $2}') activo"
+ok "brew $("$BREW" --version | head -1 | awk '{print $2}') active"
 
-# 4. Actualizar índices e instalar CLI base.
+# 4. Update indexes and install the base CLI tools.
 log "brew update…"
-"$BREW" update >/dev/null 2>&1 || warn "brew update devolvió un aviso (continúo)"
-brew_ensure jq tree            # jq lo usan módulos posteriores (p. ej. 06 VS Code)
+"$BREW" update >/dev/null 2>&1 || warn "brew update returned a warning (continuing)"
+brew_ensure jq tree            # jq is used by later modules (e.g. 06 VS Code)
 
-ok "Módulo Homebrew completado."
+ok "Homebrew module completed."
