@@ -63,6 +63,11 @@ done
 
 # ── Preparación de la corrida (solo si vamos a ejecutar de verdad) ───────────
 if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
+  # Marca para los módulos: corren orquestados, NO en solitario. Cada módulo es
+  # un paso de varios, así que ninguno debe anunciar "instalación completa" — eso
+  # lo declara setup.sh al final (p. ej. el módulo 01 acota su resumen).
+  export SETUP_ORCHESTRATED=1
+
   # Cola de autenticaciones diferidas: los logins interactivos (GitHub, etc.) se
   # ejecutan al FINAL, tras instalar todo, para no interrumpir el proceso. Un
   # único trap EXIT cierra la sesión de sudo (borra el drop-in) y borra la cola.
@@ -105,4 +110,5 @@ done
 # Autenticaciones interactivas diferidas (GitHub, etc.): al final, ya instalado todo.
 run_deferred_auth
 
-ok "setup-macos completado ($ran módulo(s))."
+step "Instalación completa"
+ok "setup-macos finalizado — $ran módulo(s) ejecutado(s)."
