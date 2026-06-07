@@ -24,12 +24,13 @@ git config --global pull.rebase false
 git config --global core.editor "code --wait"
 ok "git config global aplicado ($GIT_USER_NAME <$GIT_USER_EMAIL>)"
 
-# 3. Autenticación de GitHub SOLO si no está autenticado (no re-prompt).
+# 3. Autenticación de GitHub SOLO si falta. En una corrida orquestada se DIFIERE
+#    al final (request_auth) para no interrumpir la instalación; en solitario se
+#    ejecuta de inmediato. Idempotente: no re-prompt si ya está autenticado.
 if gh auth status --hostname github.com >/dev/null 2>&1; then
   ok "gh ya autenticado en github.com"
 else
-  warn "gh no autenticado → abriendo login web (paso interactivo)…"
-  gh auth login --hostname github.com --git-protocol https --web
+  request_auth github
 fi
 
 ok "Módulo Git & GitHub completado."

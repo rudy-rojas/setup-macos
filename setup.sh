@@ -16,6 +16,9 @@
 # Si algún módulo a ejecutar usa sudo (02 Homebrew/CLT, 12 iOS), se pide la
 # contraseña UNA vez al inicio y se mantiene viva la sesión de sudo (no se
 # almacena: se usa el timestamp propio de sudo). --list y --dry-run no la piden.
+#
+# Las autenticaciones INTERACTIVAS de apps (p. ej. el login web de GitHub) se
+# difieren al FINAL, tras instalar todo, para no interrumpir el proceso.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -28,7 +31,7 @@ while [[ $# -gt 0 ]]; do
     --skip)        SKIPS="${SKIPS}${2:-} "; shift 2 ;;
     --list|-l)     LIST=1; shift ;;
     --dry-run|-n)  DRY=1; shift ;;
-    -h|--help)     sed -n '3,18p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '3,21p' "$0"; exit 0 ;;
     [0-9][0-9])    ONLY="$1"; shift ;;
     *)             die "Opción no reconocida: '$1' (usa --help)" ;;
   esac
@@ -47,10 +50,17 @@ done
 
 [[ "$LIST" == 1 ]] && echo "Módulos detectados:"
 
-# ── Cachear sudo una vez si algún módulo a ejecutar lo requiere ──────────────
-# Módulos que usan sudo (directa o internamente): 02 (Homebrew + CLT) y 12 (iOS).
-# Así se pide la contraseña al inicio y no a mitad del proceso. Nunca en list/dry.
+# ── Preparación de la corrida (solo si vamos a ejecutar de verdad) ───────────
 if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
+  # Cola de autenticaciones diferidas: los logins interactivos (GitHub, etc.) se
+  # ejecutan al FINAL, tras instalar todo, para no interrumpir el proceso. Un
+  # único trap EXIT limpia el refrescador de sudo y borra la cola.
+  SETUP_AUTH_QUEUE="$(mktemp -t setup-macos-auth)"; export SETUP_AUTH_QUEUE
+  trap 'sudo_keep_alive_stop; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
+
+  # Pre-warm de sudo si algún módulo a ejecutar lo requiere (02 Homebrew/CLT, 12
+  # iOS). Así la contraseña se pide al inicio y no a mitad del proceso. El sudo NO
+  # se difiere: hace falta durante la instalación.
   for m in "${mods[@]}"; do
     nn="$(basename "${m%%|*}")"; nn="${nn:0:2}"
     [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
@@ -80,4 +90,8 @@ done
 
 [[ "$LIST" == 1 || "$DRY" == 1 ]] && exit 0
 [[ -n "$ONLY" && "$ran" == 0 ]] && die "No existe el módulo '$ONLY'."
+
+# Autenticaciones interactivas diferidas (GitHub, etc.): al final, ya instalado todo.
+run_deferred_auth
+
 ok "setup-macos completado ($ran módulo(s))."

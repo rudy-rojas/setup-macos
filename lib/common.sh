@@ -84,7 +84,57 @@ sudo_keep_alive() {
   # principal muere (kill -0 "$$") y el trap EXIT lo limpia en una salida normal.
   ( while true; do sudo -n true 2>/dev/null; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &
   SUDO_KEEPALIVE_PID=$!
-  trap 'sudo_keep_alive_stop' EXIT
+  # La limpieza (matar el refrescador) la hace el orquestador en su trap EXIT,
+  # vía sudo_keep_alive_stop, para no chocar con otros traps EXIT (un solo EXIT).
+}
+
+# ── Autenticación (diferible al final del setup) ─────────────────────────────
+# El orquestador difiere las autenticaciones INTERACTIVAS (p. ej. el login web de
+# GitHub) para que NO interrumpan la instalación: cada módulo encola un "token"
+# con request_auth y setup.sh ejecuta la cola al final con run_deferred_auth. Si
+# no hay orquestador (módulo corrido en solitario), request_auth se ejecuta ya.
+# OJO: el password de sudo NO entra aquí — hace falta DURANTE la instalación
+# (Homebrew/CLT) y por eso no puede diferirse; eso lo cubre sudo_keep_alive.
+
+# Login de GitHub idempotente (no re-prompt si ya está autenticado).
+gh_auth_ensure() {
+  need_cmd gh || { warn "gh no instalado; omito la autenticación de GitHub."; return 0; }
+  if gh auth status --hostname github.com >/dev/null 2>&1; then
+    ok "gh ya autenticado en github.com"
+  else
+    warn "gh no autenticado → abriendo login web (paso interactivo)…"
+    gh auth login --hostname github.com --git-protocol https --web
+  fi
+}
+
+# Ejecuta la autenticación correspondiente a un token.
+run_auth() {
+  case "$1" in
+    github) gh_auth_ensure ;;
+    *)      warn "autenticación desconocida: $1" ;;
+  esac
+}
+
+# Encola una autenticación para el FINAL si el orquestador habilitó la cola
+# (SETUP_AUTH_QUEUE); si no, la ejecuta de inmediato.   request_auth <token>
+request_auth() {
+  local token="$1" q="${SETUP_AUTH_QUEUE:-}"
+  if [[ -n "$q" && -w "$q" ]]; then
+    grep -qxF "$token" "$q" 2>/dev/null || printf '%s\n' "$token" >> "$q"
+    log "autenticación de '$token' diferida al final del setup."
+  else
+    run_auth "$token"
+  fi
+}
+
+# Ejecuta al final todas las autenticaciones encoladas (sin duplicar).
+run_deferred_auth() {
+  local q="${SETUP_AUTH_QUEUE:-}" token
+  [[ -n "$q" && -s "$q" ]] || return 0
+  step "Autenticación (al final, ya instalado todo)"
+  while IFS= read -r token; do
+    [[ -n "$token" ]] && run_auth "$token"
+  done < "$q"
 }
 
 # ── Command Line Tools de Xcode ──────────────────────────────────────────────
