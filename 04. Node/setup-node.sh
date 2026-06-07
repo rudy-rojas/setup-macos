@@ -25,10 +25,19 @@ append_once "$ZSHRC" 'eval "$(fnm env --use-on-cd --shell zsh)"'
 eval "$(fnm env --shell bash)"
 
 # 4. Instalar Node LTS, activarlo y fijarlo como default.
+#    'fnm install' acepta --lts, pero 'fnm use'/'default' NO (al menos en 1.39).
+#    'install --lts' deja el alias 'lts-latest'; lo usamos para activar y fijar,
+#    con fallback a la versión instalada más alta si ese alias no existiera.
 log "fnm install --lts…"
 fnm install --lts
-fnm use --lts                        # IMPRESCINDIBLE: 'install' no activa el LTS en esta sesión
-fnm default "$(fnm current)"         # fija el LTS activo (NO usar 'lts-latest': ese alias no existe)
+if fnm use lts-latest 2>/dev/null; then
+  fnm default lts-latest
+else
+  NODE_LTS="$(fnm ls 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n1)"
+  [[ -n "$NODE_LTS" ]] || die "No pude determinar la versión de Node instalada por fnm."
+  fnm use "$NODE_LTS"
+  fnm default "$NODE_LTS"
+fi
 ok "node $(node -v) / npm $(npm -v)"
 
 # 5. pnpm — método según arquitectura.
