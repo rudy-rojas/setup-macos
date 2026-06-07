@@ -65,27 +65,48 @@ append_once() {
   ok "añadido a $(basename "$file"): ${C_DIM}${line}${C_RST}"
 }
 
-# ── Privilegios: cachear sudo una sola vez ───────────────────────────────────
-# Pide la contraseña UNA vez y mantiene viva la credencial de sudo mientras corre
-# el setup, para que ni el install.sh de Homebrew ni softwareupdate/Xcode vuelvan
-# a pedirla a mitad del proceso. NO almacena la contraseña en ningún lado: se
-# apoya en el timestamp propio de sudo. Sin TTY (p. ej. CI) aborta con un mensaje
-# claro en vez de colgarse esperando una contraseña que nadie va a teclear.
-SUDO_KEEPALIVE_PID=""
-sudo_keep_alive_stop() {
-  [[ -n "${SUDO_KEEPALIVE_PID:-}" ]] && kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
-  SUDO_KEEPALIVE_PID=""
+# ── Privilegios: una sola contraseña para toda la corrida ────────────────────
+# Pide la contraseña UNA vez y, mientras dura el setup, instala un drop-in
+# temporal en /etc/sudoers.d para que ni Homebrew, ni los Command Line Tools, ni
+# los instaladores .pkg de los casks (p. ej. zulu@17) la vuelvan a pedir — macOS
+# NO siempre honra el timestamp de sudo para esos .pkg, así que un keep-alive del
+# timestamp no basta. El drop-in:
+#   • usa un nombre FIJO (idempotente): un sobrante de una corrida abortada se
+#     detecta y se reemplaza/elimina, no se acumula;
+#   • se valida con `visudo -cf` ANTES de instalarse (un sudoers inválido podría
+#     dejarte sin sudo); si no valida, se omite (los .pkg pedirán contraseña);
+#   • se elimina SIEMPRE al salir (trap EXIT del orquestador) vía sudo_session_end.
+# Limpieza manual si una corrida muere con kill -9:  sudo rm -f /etc/sudoers.d/setup-macos
+SUDO_DROPIN="/etc/sudoers.d/setup-macos"
+
+# Elimina el drop-in si existe. Idempotente y robusto: avisa si no pudo borrarlo.
+sudo_session_end() {
+  [[ -e "$SUDO_DROPIN" ]] || return 0
+  if sudo rm -f "$SUDO_DROPIN" 2>/dev/null; then
+    ok "sudoers temporal eliminado ($SUDO_DROPIN)"
+  else
+    warn "no pude eliminar $SUDO_DROPIN — bórralo a mano con: sudo rm -f $SUDO_DROPIN"
+  fi
 }
-sudo_keep_alive() {
+sudo_session_begin() {
   need_cmd sudo || { warn "sudo no disponible; algunos pasos podrían fallar."; return 0; }
-  log "se pedirá tu contraseña una sola vez (Homebrew y los Command Line Tools la requieren)…"
-  sudo -v || die "Se requiere acceso sudo para instalar Homebrew y los Command Line Tools."
-  # Refresca el timestamp de sudo en segundo plano; se auto-termina si el proceso
-  # principal muere (kill -0 "$$") y el trap EXIT lo limpia en una salida normal.
-  ( while true; do sudo -n true 2>/dev/null; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &
-  SUDO_KEEPALIVE_PID=$!
-  # La limpieza (matar el refrescador) la hace el orquestador en su trap EXIT,
-  # vía sudo_keep_alive_stop, para no chocar con otros traps EXIT (un solo EXIT).
+  log "se pedirá tu contraseña una sola vez para toda la instalación…"
+  sudo -v || die "Se requiere acceso sudo (Homebrew, Command Line Tools, casks .pkg)."
+  # Reemplaza cualquier sobrante de una corrida previa (idempotente).
+  sudo rm -f "$SUDO_DROPIN" 2>/dev/null || true
+  local tmp; tmp="$(mktemp -t setup-macos-sudoers)"
+  printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$(id -un)" > "$tmp"; chmod 0440 "$tmp"
+  # Todo el alta en el 'if' para que un fallo parcial no dispare set -e.
+  if sudo visudo -cf "$tmp" >/dev/null 2>&1 \
+     && sudo cp "$tmp" "$SUDO_DROPIN" \
+     && sudo chown root:wheel "$SUDO_DROPIN" \
+     && sudo chmod 0440 "$SUDO_DROPIN"; then
+    ok "sudo sin re-prompt activado durante el setup (se quita al terminar)"
+  else
+    warn "no pude activar el sudoers temporal; sigo sin él (los casks .pkg podrían pedir contraseña)."
+    sudo rm -f "$SUDO_DROPIN" 2>/dev/null || true
+  fi
+  rm -f "$tmp"
 }
 
 # ── Autenticación (diferible al final del setup) ─────────────────────────────
@@ -94,7 +115,7 @@ sudo_keep_alive() {
 # con request_auth y setup.sh ejecuta la cola al final con run_deferred_auth. Si
 # no hay orquestador (módulo corrido en solitario), request_auth se ejecuta ya.
 # OJO: el password de sudo NO entra aquí — hace falta DURANTE la instalación
-# (Homebrew/CLT) y por eso no puede diferirse; eso lo cubre sudo_keep_alive.
+# (Homebrew/CLT) y por eso no puede diferirse; eso lo cubre sudo_session_begin.
 
 # Login de GitHub idempotente (no re-prompt si ya está autenticado).
 gh_auth_ensure() {

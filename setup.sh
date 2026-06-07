@@ -13,9 +13,11 @@
 # Un módulo = carpeta "NN. Nombre/" que contiene un "setup-*.sh".
 # Cada módulo también puede ejecutarse por separado.
 #
-# Si algún módulo a ejecutar usa sudo (02 Homebrew/CLT, 12 iOS), se pide la
-# contraseña UNA vez al inicio y se mantiene viva la sesión de sudo (no se
-# almacena: se usa el timestamp propio de sudo). --list y --dry-run no la piden.
+# Si algún módulo a ejecutar usa sudo (02 Homebrew/CLT, 11 Android, 12 iOS), se
+# pide la contraseña UNA vez al inicio. Mientras dura el setup se instala un
+# drop-in temporal en /etc/sudoers.d (validado con visudo) para que tampoco la
+# pidan los instaladores .pkg de los casks; se elimina SIEMPRE al salir.
+# --list y --dry-run no piden nada.
 #
 # Las autenticaciones INTERACTIVAS de apps (p. ej. el login web de GitHub) se
 # difieren al FINAL, tras instalar todo, para no interrumpir el proceso.
@@ -31,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     --skip)        SKIPS="${SKIPS}${2:-} "; shift 2 ;;
     --list|-l)     LIST=1; shift ;;
     --dry-run|-n)  DRY=1; shift ;;
-    -h|--help)     sed -n '3,21p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '3,23p' "$0"; exit 0 ;;
     [0-9][0-9])    ONLY="$1"; shift ;;
     *)             die "Opción no reconocida: '$1' (usa --help)" ;;
   esac
@@ -54,19 +56,19 @@ done
 if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
   # Cola de autenticaciones diferidas: los logins interactivos (GitHub, etc.) se
   # ejecutan al FINAL, tras instalar todo, para no interrumpir el proceso. Un
-  # único trap EXIT limpia el refrescador de sudo y borra la cola.
+  # único trap EXIT cierra la sesión de sudo (borra el drop-in) y borra la cola.
   SETUP_AUTH_QUEUE="$(mktemp -t setup-macos-auth)"; export SETUP_AUTH_QUEUE
-  trap 'sudo_keep_alive_stop; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
+  trap 'sudo_session_end; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
 
-  # Pre-warm de sudo si algún módulo a ejecutar lo requiere (02 Homebrew/CLT, 12
-  # iOS). Así la contraseña se pide al inicio y no a mitad del proceso. El sudo NO
-  # se difiere: hace falta durante la instalación.
+  # Abre la sesión de sudo (una sola contraseña) si algún módulo a ejecutar la
+  # necesita: 02 (Homebrew/CLT), 11 (Android: cask zulu@17 .pkg) y 12 (iOS). El
+  # sudo NO se difiere: hace falta DURANTE la instalación.
   for m in "${mods[@]}"; do
     nn="$(basename "${m%%|*}")"; nn="${nn:0:2}"
     [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
     [[ -n "$FROM" && "$nn" < "$FROM" ]] && continue
     case "$SKIPS" in *" $nn "*) continue ;; esac
-    case " 02 12 " in *" $nn "*) sudo_keep_alive; break ;; esac
+    case " 02 11 12 " in *" $nn "*) sudo_session_begin; break ;; esac
   done
 fi
 
