@@ -305,6 +305,28 @@ ensure_homebrew() {
 brew_cask_installed()    { brew list --cask "$1" >/dev/null 2>&1; }
 brew_formula_installed() { brew list --formula "$1" >/dev/null 2>&1; }
 
+# Run a (possibly slow) brew command, retrying on a transient network failure.
+# Cask/bottle downloads can stall on a flaky CDN edge; lib/common.sh sets a curl
+# low-speed timeout so a stalled transfer aborts instead of hanging, and brew
+# resumes the partial file on the next attempt — so a retry here is cheap and
+# usually succeeds on a fresh edge (it automates the old "Ctrl-C + re-run").
+# Output is appended to the log; the caller prints the human-facing status.
+#   _brew_retry <label> -- brew install ...
+_brew_retry() {
+  local label="$1"; shift
+  [[ "${1:-}" == "--" ]] && shift
+  local attempt=1 max=3
+  while (( attempt <= max )); do
+    (( attempt > 1 )) && info "Retrying ${label} (attempt ${attempt}/${max})…"
+    if "$@" >>"${LOG_FILE}" 2>&1; then
+      return 0
+    fi
+    attempt=$(( attempt + 1 ))
+    sleep 3
+  done
+  return 1
+}
+
 # Install a cask idempotently.
 #   $1 = cask name
 #   $2 = (optional) app path to detect installations made outside Homebrew
@@ -317,17 +339,19 @@ install_cask() {
   # Common case: the app already exists but was installed manually (not via Homebrew).
   # Homebrew would refuse to overwrite it; we try to "adopt" it and, failing that, leave it.
   if [[ -n "${app_path}" && -d "${app_path}" ]]; then
-    if brew install --cask --adopt "${name}" >>"${LOG_FILE}" 2>&1; then
+    info "Adopting '${name}' into Homebrew (already at ${app_path})…"
+    if _brew_retry "adopt ${name}" -- brew install --cask --adopt "${name}"; then
       success "Cask '${name}' adopted by Homebrew (was already installed)."
     else
       info "'${name}' is already installed at ${app_path} (outside Homebrew), leaving it."
     fi
     return 0
   fi
-  if brew install --cask "${name}" >>"${LOG_FILE}" 2>&1; then
+  info "Downloading and installing '${name}' (cask)… large apps can take a while; progress is logged."
+  if _brew_retry "install cask ${name}" -- brew install --cask "${name}"; then
     success "Installed (cask): ${name}"
   else
-    warning "Couldn't install cask '${name}'. Check the log."
+    warning "Couldn't install cask '${name}'. Check the log: ${LOG_FILE}"
   fi
 }
 
@@ -335,10 +359,10 @@ install_formula() {
   local name="$1"
   if brew_formula_installed "${name}"; then
     info "Formula '${name}' already installed, skipping."
-  elif brew install "${name}" >>"${LOG_FILE}" 2>&1; then
+  elif _brew_retry "install formula ${name}" -- brew install "${name}"; then
     success "Installed (formula): ${name}"
   else
-    warning "Couldn't install formula '${name}'. Check the log."
+    warning "Couldn't install formula '${name}'. Check the log: ${LOG_FILE}"
   fi
 }
 

@@ -40,6 +40,35 @@ else
 fi
 BREW="$BREW_PREFIX/bin/brew"
 
+# ── Resilient Homebrew downloads (avoid indefinitely stalled transfers) ───────
+# Symptom this prevents: a cask/bottle download (e.g. Alacritty's .dmg, served
+# from the GitHub release CDN) hangs "forever" even on a healthy connection,
+# and only a Ctrl-C + re-run gets it moving again.
+# Cause: Homebrew applies a low-speed timeout (--speed-limit/--speed-time) ONLY
+# to its JSON API and to `git` updates — never to ARTIFACT downloads, which get
+# just `--retry`. `--retry` fires on a hard error, not on a stalled-but-alive
+# connection (a flaky CDN edge), so curl waits indefinitely.
+# Fix: inject a low-speed timeout into every Homebrew curl via HOMEBREW_CURLRC.
+# Homebrew runs `curl --disable --config <file>`, so this is scoped to Homebrew
+# (the user's own ~/.curlrc is untouched) and, because Homebrew appends the
+# API's own --speed-limit AFTER our --config, it only adds protection where
+# there was none (artifacts) without changing API behavior. On a stall curl
+# aborts (exit 28), --retry reconnects, and brew resumes the partial download
+# (try_partial) — so the transfer self-heals instead of hanging.
+export HOMEBREW_NO_AUTO_UPDATE="${HOMEBREW_NO_AUTO_UPDATE:-1}"  # modules update explicitly (02)
+export HOMEBREW_CURL_RETRIES="${HOMEBREW_CURL_RETRIES:-5}"
+if [[ "${HOMEBREW_CURLRC:-}" != /* ]]; then        # respect a user-provided config file
+  _setup_curlrc="$HOME/.cache/setup-macos/homebrew-curlrc"
+  if [[ ! -f "$_setup_curlrc" ]]; then
+    # Abort a transfer that stays under 1 KB/s for 30 s (a real stall, not a
+    # merely slow link); --retry then reconnects and brew resumes the partial.
+    mkdir -p "$(dirname "$_setup_curlrc")" 2>/dev/null \
+      && printf 'speed-limit = 1024\nspeed-time = 30\n' >"$_setup_curlrc" 2>/dev/null || true
+  fi
+  [[ -f "$_setup_curlrc" ]] && export HOMEBREW_CURLRC="$_setup_curlrc"
+  unset _setup_curlrc
+fi
+
 # zsh init files — honor ZDOTDIR just like the Homebrew installer does.
 # (If ZDOTDIR is set, ~/.zprofile is NEVER sourced and brew wouldn't reach the PATH.)
 ZDOTDIR_EFF="${ZDOTDIR:-$HOME}"
@@ -206,13 +235,26 @@ ensure_clt() {
 }
 
 # ── Homebrew: install only if missing ────────────────────────────────────────
+# Run a downloading brew command, retrying on a transient network failure. The
+# curl low-speed timeout set above makes a stalled download abort quickly and
+# brew resumes the partial on retry, so this rarely loops — it just turns a
+# flaky CDN edge into a brief retry instead of a failed run. Output stays live.
+brew_retry() {                        # brew_retry "$BREW" install --cask foo
+  local attempt=1 max=3
+  while (( attempt <= max )); do
+    if "$@"; then return 0; fi
+    if (( attempt == max )); then return 1; fi
+    warn "brew command failed (attempt $attempt/$max); retrying in 3s…"
+    attempt=$(( attempt + 1 )); sleep 3
+  done
+}
 brew_ensure() {                       # brew_ensure formula1 formula2 ...
   local f
   for f in "$@"; do
     if "$BREW" list --formula --versions "$f" >/dev/null 2>&1; then
       ok "brew: $f (already installed)"
     else
-      log "brew install $f"; "$BREW" install "$f"
+      log "brew install $f"; brew_retry "$BREW" install "$f"
     fi
   done
 }
@@ -222,7 +264,7 @@ cask_ensure() {                       # cask_ensure cask1 cask2 ...
     if "$BREW" list --cask --versions "$c" >/dev/null 2>&1; then
       ok "cask: $c (already installed)"
     else
-      log "brew install --cask $c"; "$BREW" install --cask "$c"
+      log "brew install --cask $c"; brew_retry "$BREW" install --cask "$c"
     fi
   done
 }
