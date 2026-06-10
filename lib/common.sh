@@ -180,8 +180,24 @@ sudo_session_end() {
 }
 sudo_session_begin() {
   need_cmd sudo || { warn "sudo not available; some steps could fail."; return 0; }
-  log "you will be asked for your password once for the whole installation…"
-  sudo -v || die "sudo access is required (Homebrew, Command Line Tools, cask .pkg)."
+  # Reuse an already-passwordless session instead of prompting again — this is the
+  # hand-off case: the resumed iTerm2 leg inherits the drop-in that the Terminal.app
+  # leg left in place (its EXIT trap keeps it during a hand-off). The check is
+  # `sudo -n true` (run a real command non-interactively), NOT `sudo -v`: with
+  # macOS's default `Defaults verifypw=all`, -v demands a password unless EVERY
+  # matching sudoers entry is NOPASSWD — and the user's normal %admin entry isn't,
+  # so -v would re-prompt even while the drop-in is active.
+  if sudo -n true 2>/dev/null; then
+    if [[ -e "$SUDO_DROPIN" ]]; then
+      ok "sudo session reused (no password needed)"
+      return 0
+    fi
+    # Passwordless via a cached timestamp but no drop-in yet → install it below
+    # (needed for the cask .pkg installers), without prompting.
+  else
+    log "you will be asked for your password once for the whole installation…"
+    sudo -v || die "sudo access is required (Homebrew, Command Line Tools, cask .pkg)."
+  fi
   # Replace any leftover from a previous run (idempotent).
   sudo rm -f "$SUDO_DROPIN" 2>/dev/null || true
   local tmp; tmp="$(mktemp -t setup-macos-sudoers)"

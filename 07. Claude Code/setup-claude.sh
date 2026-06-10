@@ -23,8 +23,9 @@ case ":$PATH:" in
 esac
 need_cmd claude || die "claude is not on the PATH (~/.local/bin). Open a new terminal."
 
-# 3. Verify.
+# 3. Verify. claude doctor is NOT run here: it renders an interactive screen that
+#    blocks on "Enter to continue", stalling an unattended install.
 claude --version
-claude doctor || true     # diagnostics (detects conflicting installations)
+log "for install diagnostics (conflicting installations), run: claude doctor"
 
 ok "Claude Code module completed."
