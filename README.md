@@ -64,6 +64,7 @@ default values. Variables can also be passed inline (`VAR=… ./setup.sh`).
 | `PG_VERSION` `PYTHON_VERSION` `JDK_VERSION` `ANDROID_API` `ANDROID_BUILD_TOOLS` | 08/03/11 | Pin a different toolchain version without editing modules (single source of truth: `lib/common.sh`) |
 | `SETUP_TIMEOUT` | 08/09/10 | Seconds to wait for a service to become ready (default 30; raise on slow machines) |
 | `NO_TERMINAL_HANDOFF=1` | 01 | Disable the automatic Terminal.app→iTerm2 hand-off (see Shell) |
+| `SETUP_NO_CLEAR=1` | — | Don't clear the screen at startup (a real run shows a banner, `[N/M]` progress and per-module timing; `--list`/`--dry-run`/piped output stay plain) |
 
 ## Module dependencies & order
 

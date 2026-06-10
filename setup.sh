@@ -34,9 +34,11 @@ source "$HERE/lib/common.sh"
 # EXPORTED entirely (set -a) so the modules inherit GIT_USER_*, PG_DATABASES,
 # MYSQL_ROOT_PASSWORD, INSTALL_IOS, etc. without prompts mid-install.
 # Template: setup.env.example. Without the file, the defaults are used.
+# (Reported in the banner, not here: the banner clears the screen first.)
+CONFIG_SOURCE=""
 if [[ -f "$HERE/setup.env" ]]; then
   set -a; source "$HERE/setup.env"; set +a
-  ok "configuration loaded from setup.env"
+  CONFIG_SOURCE="setup.env"
 fi
 
 ONLY=""; FROM=""; DRY=0; LIST=0; SKIPS=" "; RESUME_ITERM=0
@@ -156,77 +158,170 @@ resume_terminal_reapply() {
   fi
 }
 
-[[ "$LIST" == 1 ]] && echo "Detected modules:"
+# ── Presentation: banner, [N/M] progress, per-module timing ──────────────────
+# Cosmetic only, and applied ONLY to a real run: --list/--dry-run stay plain, and
+# colors are already TTY-gated in lib/common.sh, so piped/CI output is unchanged.
+# The double-line box matches the style module 01 already uses. The screen clear
+# is interactive-only and can be disabled with SETUP_NO_CLEAR=1.
 
-# ── Run preparation (only if we are actually going to execute) ───────────────
-if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
-  # The modules write PATH/env to the zsh init files; warn once up front if the
-  # login shell isn't zsh so those changes aren't silently lost.
-  check_login_shell
+UI_WIDTH=80
+ui_init() {
+  local c=""
+  if [[ -t 1 ]]; then c="$(tput cols 2>/dev/null || true)"; fi
+  [[ "$c" =~ ^[0-9]+$ ]] || c=80
+  [[ "$c" -lt 48 ]] && c=48          # keep the layout sane in tiny windows
+  [[ "$c" -gt 80 ]] && c=80          # don't stretch boxes/rules on wide windows
+  UI_WIDTH="$c"
+}
 
-  # Marker for the modules: they run orchestrated, NOT standalone. Each module is
-  # one step of many, so none should announce "installation complete" — that is
-  # declared by setup.sh at the end (e.g. module 01 narrows its summary).
-  export SETUP_ORCHESTRATED=1
+ui_repeat() {                        # ui_repeat <char> <count>  (no newline)
+  local i out=""
+  for (( i = 0; i < $2; i++ )); do out+="$1"; done
+  printf '%s' "$out"
+}
 
-  # Deferred authentication queue: interactive logins (GitHub, etc.) run at the
-  # END, after everything is installed, so they don't interrupt the process. A
-  # single EXIT trap closes the sudo session (removes the drop-in) and clears the queue.
-  # On an iTerm2 hand-off (HANDOFF_IN_PROGRESS) the drop-in is KEPT so the resumed
-  # run reuses it without a second password prompt.
-  SETUP_AUTH_QUEUE="$(mktemp -t setup-macos-auth)"; export SETUP_AUTH_QUEUE
-  trap '[[ -n "${HANDOFF_IN_PROGRESS:-}" ]] || sudo_session_end; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
+ui_box() {                           # ui_box <color> <text> — centered one-liner box
+  local color="$1" text="$2"
+  local inner=$(( UI_WIDTH - 2 ))
+  local lpad=$(( (inner - ${#text}) / 2 )); [[ "$lpad" -lt 0 ]] && lpad=0
+  local rpad=$(( inner - ${#text} - lpad )); [[ "$rpad" -lt 0 ]] && rpad=0
+  printf '%s%s╔%s╗\n' "$color" "$C_BLD" "$(ui_repeat '═' "$inner")"
+  printf '║%*s%s%*s║\n' "$lpad" '' "$text" "$rpad" ''
+  printf '╚%s╝%s\n' "$(ui_repeat '═' "$inner")" "$C_RST"
+}
 
-  # Open the sudo session (a single password) if any module to run needs it:
-  # 02 (Homebrew/CLT), 11 (Android: cask zulu@17 .pkg) and 12 (iOS). The sudo is
-  # NOT deferred: it is needed DURING the installation.
-  for m in "${mods[@]}"; do
-    nn="$(basename "${m%%|*}")"; nn="${nn:0:2}"
-    [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
-    [[ -n "$FROM" && "$nn" < "$FROM" ]] && continue
-    case "$SKIPS" in *" $nn "*) continue ;; esac
-    if [[ " 02 11 12 " == *" $nn "* ]]; then sudo_session_begin; break; fi
-  done
+print_banner() {                     # print_banner <count-of-modules-to-run>
+  if [[ -t 1 && "${SETUP_NO_CLEAR:-0}" != "1" ]]; then clear 2>/dev/null || true; fi
+  ui_box "$C_CYN" "setup-macos · TNB dev Mac"
+  local os cfg="defaults (no setup.env)" ctx=""
+  os="$(sw_vers -productVersion 2>/dev/null || echo '?')"
+  [[ -n "$CONFIG_SOURCE" ]] && cfg="setup.env loaded"
+  [[ "$RESUME_ITERM" == 1 ]] && ctx=" · resumed in iTerm2"
+  printf '%s  macOS %s · %s · %s%s\n' "$C_DIM" "$os" "$ARCH" "$BREW_PREFIX" "$C_RST"
+  printf '%s  %s · %s module(s) to run%s%s\n' "$C_DIM" "$cfg" "$1" "$ctx" "$C_RST"
+}
 
-  # If we were relaunched in iTerm2, close Terminal.app and re-apply its profile
-  # before continuing with the remaining modules.
-  [[ "$RESUME_ITERM" == 1 ]] && resume_terminal_reapply
-fi
+step_module() {                      # step_module <index> <total> <name>
+  local head; head="$(printf '[%2d/%d] %s' "$1" "$2" "$3")"
+  local tail=$(( UI_WIDTH - ${#head} - 4 )); [[ "$tail" -lt 0 ]] && tail=0
+  printf '\n%s%s── %s %s%s\n' "$C_CYN" "$C_BLD" "$head" "$(ui_repeat '─' "$tail")" "$C_RST"
+}
 
-ran=0; did_01=0
+fmt_duration() {                     # fmt_duration <seconds> → "4m 03s" / "38s"
+  local s="$1"
+  if [[ "$s" -ge 60 ]]; then printf '%dm %02ds' $(( s / 60 )) $(( s % 60 ))
+  else printf '%ds' "$s"; fi
+}
+
+print_run_summary() {                # print_run_summary <ran> <total-seconds>
+  printf '\n'
+  ui_box "$C_GRN" "✓  Installation complete"
+  if [[ ${#MOD_NAMES[@]} -gt 0 ]]; then
+    local i
+    for (( i = 0; i < ${#MOD_NAMES[@]}; i++ )); do
+      printf '%s  %-24s %6s%s\n' "$C_DIM" "${MOD_NAMES[$i]}" "$(fmt_duration "${MOD_TIMES[$i]}")" "$C_RST"
+    done
+  fi
+  ok "setup-macos finished — $1 module(s) executed in $(fmt_duration "$2")."
+}
+
+# ── Select the modules to run (ONLY / FROM / SKIPS applied once) ──────────────
+to_run=()        # "nn|name|script" tuples, in execution order
+skipped=()       # names excluded via --skip (reported after the banner's clear)
 for m in "${mods[@]}"; do
   dir="${m%%|*}"; script="${m#*|}"
   name="$(basename "$dir")"; nn="${name:0:2}"
-
   [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
   [[ -n "$FROM" && "$nn" < "$FROM" ]] && continue
-  case "$SKIPS" in *" $nn "*) warn "skipping $name"; continue ;; esac
-
-  if [[ "$LIST" == 1 ]]; then printf '  %s  →  %s\n' "$nn" "$name"; continue; fi
-  if [[ "$DRY"  == 1 ]]; then printf '  (dry-run) %s\n' "$script"; continue; fi
-
-  # After module 01 (Terminals) finishes, before the first later module, hand off
-  # to iTerm2 if we're running from Terminal.app (so its profile can persist). This
-  # may exit and relaunch setup in iTerm2 with --resume-iterm; checked only once.
-  # (Modules run in numeric order, so the first iteration with did_01==1 is the
-  # first module after 01 — that's the one we resume from.)
-  if [[ "$did_01" == 1 ]]; then
-    handoff_to_iterm_if_applicable "$nn"
-    did_01=2
-  fi
-
-  step "Module $name"
-  bash "$script"
-  ok "Module $name completed"
-  ran=$((ran + 1))
-  [[ "$nn" == "01" ]] && did_01=1
+  case "$SKIPS" in *" $nn "*) skipped+=("$name"); continue ;; esac
+  to_run+=("$nn|$name|$script")
 done
+[[ -n "$ONLY" && ${#to_run[@]} -eq 0 ]] && die "Module '$ONLY' does not exist."
 
-[[ "$LIST" == 1 || "$DRY" == 1 ]] && exit 0
-[[ -n "$ONLY" && "$ran" == 0 ]] && die "Module '$ONLY' does not exist."
+# ── --list / --dry-run: report and exit (no side effects, no banner) ─────────
+if [[ "$LIST" == 1 || "$DRY" == 1 ]]; then
+  if [[ ${#skipped[@]} -gt 0 ]]; then
+    for name in "${skipped[@]}"; do warn "skipping $name"; done
+  fi
+  [[ "$LIST" == 1 ]] && echo "Detected modules:"
+  if [[ ${#to_run[@]} -gt 0 ]]; then
+    for m in "${to_run[@]}"; do
+      nn="${m%%|*}"; rest="${m#*|}"; name="${rest%%|*}"; script="${rest#*|}"
+      if [[ "$LIST" == 1 ]]; then printf '  %s  →  %s\n' "$nn" "$name"
+      else printf '  (dry-run) %s\n' "$script"; fi
+    done
+  fi
+  exit 0
+fi
+
+# ── Run preparation ───────────────────────────────────────────────────────────
+ui_init
+print_banner "${#to_run[@]}"
+if [[ ${#skipped[@]} -gt 0 ]]; then
+  for name in "${skipped[@]}"; do warn "skipping $name"; done
+fi
+
+# The modules write PATH/env to the zsh init files; warn once up front if the
+# login shell isn't zsh so those changes aren't silently lost.
+check_login_shell
+
+# Marker for the modules: they run orchestrated, NOT standalone. Each module is
+# one step of many, so none should announce "installation complete" — that is
+# declared by setup.sh at the end (e.g. module 01 narrows its summary).
+export SETUP_ORCHESTRATED=1
+
+# Deferred authentication queue: interactive logins (GitHub, etc.) run at the
+# END, after everything is installed, so they don't interrupt the process. A
+# single EXIT trap closes the sudo session (removes the drop-in) and clears the queue.
+# On an iTerm2 hand-off (HANDOFF_IN_PROGRESS) the drop-in is KEPT so the resumed
+# run reuses it without a second password prompt.
+SETUP_AUTH_QUEUE="$(mktemp -t setup-macos-auth)"; export SETUP_AUTH_QUEUE
+trap '[[ -n "${HANDOFF_IN_PROGRESS:-}" ]] || sudo_session_end; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
+
+# Open the sudo session (a single password) if any module to run needs it:
+# 02 (Homebrew/CLT), 11 (Android: cask zulu@17 .pkg) and 12 (iOS). The sudo is
+# NOT deferred: it is needed DURING the installation.
+if [[ ${#to_run[@]} -gt 0 ]]; then
+  for m in "${to_run[@]}"; do
+    nn="${m%%|*}"
+    if [[ " 02 11 12 " == *" $nn "* ]]; then sudo_session_begin; break; fi
+  done
+fi
+
+# If we were relaunched in iTerm2, close Terminal.app and re-apply its profile
+# before continuing with the remaining modules.
+[[ "$RESUME_ITERM" == 1 ]] && resume_terminal_reapply
+
+# ── Execute ───────────────────────────────────────────────────────────────────
+total="${#to_run[@]}"; ran=0; did_01=0
+MOD_NAMES=(); MOD_TIMES=()           # per-module durations for the final recap
+SETUP_T0=$SECONDS
+if [[ "$total" -gt 0 ]]; then
+  for m in "${to_run[@]}"; do
+    nn="${m%%|*}"; rest="${m#*|}"; name="${rest%%|*}"; script="${rest#*|}"
+
+    # After module 01 (Terminals) finishes, before the first later module, hand off
+    # to iTerm2 if we're running from Terminal.app (so its profile can persist). This
+    # may exit and relaunch setup in iTerm2 with --resume-iterm; checked only once.
+    # (Modules run in numeric order, so the first iteration with did_01==1 is the
+    # first module after 01 — that's the one we resume from.)
+    if [[ "$did_01" == 1 ]]; then
+      handoff_to_iterm_if_applicable "$nn"
+      did_01=2
+    fi
+
+    ran=$((ran + 1))
+    step_module "$ran" "$total" "$name"
+    t0=$SECONDS
+    bash "$script"
+    dt=$(( SECONDS - t0 ))
+    ok "Module $name completed ($(fmt_duration "$dt"))"
+    MOD_NAMES+=("$name"); MOD_TIMES+=("$dt")
+    [[ "$nn" == "01" ]] && did_01=1
+  done
+fi
 
 # Deferred interactive authentications (GitHub, etc.): at the end, everything installed.
 run_deferred_auth
 
-step "Installation complete"
-ok "setup-macos finished — $ran module(s) executed."
+print_run_summary "$ran" $(( SECONDS - SETUP_T0 ))
