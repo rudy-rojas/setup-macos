@@ -101,6 +101,7 @@ PYTHON_APPKIT=""          # Interpreter with AppKit/pyobjc (Terminal.app and fon
 
 # Global state.
 USE_COLOR=1
+TERMINAL_ONLY=0           # --terminal-only: re-apply ONLY the Terminal.app profile.
 BACKUP_MADE=0
 declare -a WARNINGS=()    # Accumulates non-fatal warnings for the final summary.
 STEP=0
@@ -208,6 +209,10 @@ parse_args() {
       -h|--help)    print_help; exit 0 ;;
       -v|--version) printf '%s %s\n' "${SCRIPT_NAME}" "${SCRIPT_VERSION}"; exit 0 ;;
       --no-color)   USE_COLOR=0 ;;
+      # Re-apply ONLY the Terminal.app profile. Used by the orchestrator after it
+      # hands off to iTerm2 and closes Terminal.app, so the profile finally persists
+      # (Terminal.app rewrites its prefs on quit, clobbering an earlier write).
+      --terminal-only) TERMINAL_ONLY=1 ;;
       *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
@@ -1151,6 +1156,20 @@ main() {
   printf '%s╔══════════════════════════════════════════════════╗%s\n' "${BOLD}" "${RESET}"
   printf '%s║   Terminal Setup — Unified Experience (v%s)   ║%s\n' "${BOLD}" "${SCRIPT_VERSION}" "${RESET}"
   printf '%s╚══════════════════════════════════════════════════╝%s\n' "${BOLD}" "${RESET}"
+
+  # Fast path: re-apply ONLY the Terminal.app profile. Everything else (iTerm2,
+  # Alacritty, fonts, ~/.zshrc) was already applied in the first pass and is
+  # unaffected by Terminal.app being closed, so we skip it. Requires the Python
+  # AppKit helper and the resolved font, which are cheap to recompute here.
+  if [[ "${TERMINAL_ONLY}" -eq 1 ]]; then
+    step "Re-applying Terminal.app profile"
+    write_gen_py
+    setup_python
+    resolve_font
+    configure_terminal_app
+    success "Terminal.app profile re-applied (run from outside Terminal.app)."
+    return 0
+  fi
 
   preflight
   ensure_homebrew

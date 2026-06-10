@@ -63,6 +63,7 @@ default values. Variables can also be passed inline (`VAR=… ./setup.sh`).
 | `INSTALL_IOS=1` | 12 | Enables the iOS module (opt-in, ~12 GB) |
 | `PG_VERSION` `PYTHON_VERSION` `JDK_VERSION` `ANDROID_API` `ANDROID_BUILD_TOOLS` | 08/03/11 | Pin a different toolchain version without editing modules (single source of truth: `lib/common.sh`) |
 | `SETUP_TIMEOUT` | 08/09/10 | Seconds to wait for a service to become ready (default 30; raise on slow machines) |
+| `NO_TERMINAL_HANDOFF=1` | 01 | Disable the automatic Terminal.app→iTerm2 hand-off (see Shell) |
 
 ## Module dependencies & order
 
@@ -77,6 +78,18 @@ Prerequisite checks are explicit (`load_brew`, `require_cmd`), so a missing depe
 ## Shell
 
 The modules write PATH/env to the **zsh** init files (`~/.zprofile`, `~/.zshrc`). If your login shell isn't zsh, `setup.sh` warns once up front; switch with `chsh -s /bin/zsh` or add those files to your shell's init.
+
+### Terminal.app → iTerm2 hand-off
+
+Terminal.app rewrites its own preferences when it quits, so the Gruvbox profile written by module 01 is lost the moment you close the Terminal.app window you launched setup from. To make it persist, the profile must be applied while Terminal.app is **not** running.
+
+So when you run `./setup.sh` **from Terminal.app**, once module 01 finishes (iTerm2 is installed and configured) setup automatically:
+
+1. relaunches the rest of the install **inside iTerm2** (reusing the same `sudo` session — no second password prompt),
+2. **closes Terminal.app** and re-applies its profile (now it sticks),
+3. continues with modules 02→ in iTerm2 and drops you into a configured login shell.
+
+It only triggers on a multi-module run started from Terminal.app, runs once (guarded against re-entry), and falls back to staying in Terminal.app if iTerm2 can't be launched. Disable it with `NO_TERMINAL_HANDOFF=1`. Starting from iTerm2 (or any non-Terminal.app terminal) needs no hand-off — the profile persists normally.
 
 ## Idempotency
 
