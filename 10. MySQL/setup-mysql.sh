@@ -19,18 +19,23 @@ MYSQL_BIN="$("$BREW" --prefix mysql)/bin"
 export PATH="$MYSQL_BIN:$PATH"
 
 # Wait for the server to start (ping does not require valid credentials).
-log "waiting for MySQL to start…"
-tries=0
-until mysqladmin ping --silent >/dev/null 2>&1; do
-  tries=$((tries + 1)); [ "$tries" -ge 30 ] && { warn "MySQL did not respond after 30s."; break; }; sleep 1
-done
+wait_for "MySQL to start" mysqladmin ping --silent \
+  || warn "MySQL did not respond after ${SETUP_TIMEOUT}s."
 
 # (Optional) set the root password if MYSQL_ROOT_PASSWORD is provided.
+# The password is NEVER passed on the command line (it would show up in `ps` and
+# under `bash -x`): the ALTER USER is fed via stdin, and the credential check uses
+# MYSQL_PWD (an env var, not argv) wrapped in no_xtrace so `bash -x` can't leak it.
 if [[ -n "${MYSQL_ROOT_PASSWORD:-}" ]]; then
+  # The assignment-prefix keeps MYSQL_PWD out of the process argv (unlike `env VAR=…`);
+  # no_xtrace keeps it out of `bash -x` output too.
+  mysql_check_pw() { MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root -e "SELECT 1" >/dev/null 2>&1; }
   if mysql -u root -e "SELECT 1" >/dev/null 2>&1; then
-    mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;"
+    no_xtrace mysql -u root <<SQL
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}'; FLUSH PRIVILEGES;
+SQL
     ok "MySQL root password set"
-  elif MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root -e "SELECT 1" >/dev/null 2>&1; then
+  elif no_xtrace mysql_check_pw; then
     ok "MySQL root already uses the provided password"
   else
     warn "Could not connect to MySQL (neither without a password nor with MYSQL_ROOT_PASSWORD). Check it manually."

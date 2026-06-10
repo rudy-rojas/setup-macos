@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 03. Python — uv + Python 3.12 as the default python3.
+# 03. Python — uv + Python (PYTHON_VERSION, default 3.12) as the default python3.
 # uv manages the interpreters; the shims live in ~/.local/bin (same on arm64/x86_64).
 # =============================================================================
 set -euo pipefail
@@ -24,9 +24,10 @@ export PATH="$HOME/.local/bin:$PATH"
 need_cmd uv || die "uv did not become available on the PATH."
 ok "uv $(uv --version 2>/dev/null | awk '{print $2}')"
 
-# 3. Install Python 3.12 and set it as the default (creates python/python3 shims).
-log "uv python install 3.12 --default…"
-uv python install 3.12 --default
+# 3. Install Python (pinned in lib/common.sh: PYTHON_VERSION) and set it as the
+#    default (creates the python/python3 shims).
+log "uv python install $PYTHON_VERSION --default…"
+uv python install "$PYTHON_VERSION" --default
 # Ensures ~/.local/bin on the PATH of FUTURE shells (idempotent; tolerates old uv versions).
 uv python update-shell 2>/dev/null || warn "uv python update-shell unavailable; make sure ~/.local/bin is on your PATH."
 hash -r 2>/dev/null || true

@@ -13,11 +13,12 @@ step "Redis"
 brew_ensure redis
 service_ensure redis
 
-# Verify.
-if redis-cli ping 2>/dev/null | grep -qi PONG; then
+# Verify (poll: the socket may take a moment right after the service starts).
+redis_pong() { redis-cli ping 2>/dev/null | grep -qi PONG; }
+if wait_for "redis to respond PONG" redis_pong; then
   ok "redis responds PONG"
 else
-  warn "redis has not responded to PING yet (it may take a moment after starting)."
+  warn "redis has not responded to PING after ${SETUP_TIMEOUT}s (check: brew services list)."
 fi
 
 ok "Redis module completed."

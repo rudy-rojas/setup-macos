@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Static analysis + syntax — fast, runs on Linux (no macOS minutes needed).
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: shellcheck (warnings fail; info ignored)
+        run: |
+          mapfile -d '' scripts < <(find . -name '*.sh' -not -path './.git/*' -print0)
+          shellcheck -s bash -S warning -e SC1090,SC1091,SC2034 "${scripts[@]}"
+
+      - name: bash -n (syntax)
+        run: |
+          rc=0
+          while IFS= read -r -d '' f; do
+            bash -n "$f" || { echo "SYNTAX FAIL: $f"; rc=1; }
+          done < <(find . -name '*.sh' -not -path './.git/*' -print0)
+          exit "$rc"
+
+  # Smoke test — must run on macOS because lib/common.sh refuses non-Darwin.
+  # --list / --dry-run exercise discovery + arg parsing with zero side effects.
+  smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup.sh --list
+        run: ./setup.sh --list
+      - name: setup.sh --dry-run
+        run: ./setup.sh --dry-run

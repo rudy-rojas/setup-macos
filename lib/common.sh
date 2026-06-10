@@ -40,6 +40,20 @@ else
 fi
 BREW="$BREW_PREFIX/bin/brew"
 
+# ── Pinned toolchain versions (single source of truth) ───────────────────────
+# Bump these here (or override per-run via setup.env / inline VAR=… ./setup.sh)
+# instead of editing the modules. The dates are the upstream end-of-life / support
+# windows — review and bump BEFORE they pass so the setup never goes stale silently.
+PG_VERSION="${PG_VERSION:-16}"                       # PostgreSQL major — EOL 2028-11
+PYTHON_VERSION="${PYTHON_VERSION:-3.12}"             # Python minor     — EOL 2028-10
+JDK_VERSION="${JDK_VERSION:-17}"                     # Azul Zulu JDK — RN/Expo need 17, NOT 21+
+ANDROID_API="${ANDROID_API:-36}"                     # Android platform / system-image API level
+ANDROID_BUILD_TOOLS="${ANDROID_BUILD_TOOLS:-36.0.0}" # Android build-tools version
+
+# Seconds to wait for a service (Postgres, MySQL, …) to become ready. Override
+# with SETUP_TIMEOUT=… for slow machines / cold starts.
+SETUP_TIMEOUT="${SETUP_TIMEOUT:-30}"
+
 # ── Resilient Homebrew downloads (avoid indefinitely stalled transfers) ───────
 # Symptom this prevents: a cask/bottle download (e.g. Alacritty's .dmg, served
 # from the GitHub release CDN) hangs "forever" even on a healthy connection,
@@ -77,6 +91,51 @@ ZSHRC="$ZDOTDIR_EFF/.zshrc"
 
 # ── Base utilities ───────────────────────────────────────────────────────────
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+# require_cmd <command> <hint> — fail fast with a clear, actionable message when a
+# cross-module prerequisite is missing, instead of a cryptic error deep in a step.
+#   require_cmd npm "run module 04 (Node) first."
+require_cmd() {
+  need_cmd "$1" && return 0
+  die "'$1' is required but was not found — $2"
+}
+
+# wait_for <description> <command...> — poll the command until it succeeds or
+# SETUP_TIMEOUT seconds elapse. Returns 0 when ready, 1 on timeout, so the caller
+# decides whether a timeout is fatal (die) or a warning. Standardizes the
+# service-readiness loop that modules 08/09/10 used to hand-roll.
+wait_for() {
+  local desc="$1"; shift
+  local tries=0
+  log "waiting for $desc (up to ${SETUP_TIMEOUT}s)…"
+  until "$@" >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [[ "$tries" -ge "$SETUP_TIMEOUT" ]] && return 1
+    sleep 1
+  done
+  return 0
+}
+
+# Run a command with xtrace (set -x) temporarily OFF so any secret in its
+# arguments never leaks to the log when the script is invoked with `bash -x`.
+# (Defense in depth — prefer feeding secrets via stdin so they also stay out of `ps`.)
+no_xtrace() {
+  case "$-" in
+    *x*) set +x; "$@"; local rc=$?; set -x; return $rc ;;
+    *)   "$@" ;;
+  esac
+}
+
+# This project writes shell-init lines (PATH, env) to the zsh files ~/.zprofile
+# and ~/.zshrc. If the login shell isn't zsh those changes are silently never
+# loaded — warn once (called by setup.sh) so it isn't a confusing surprise later.
+check_login_shell() {
+  case "${SHELL:-}" in
+    */zsh) return 0 ;;
+    *) warn "your login shell is '${SHELL:-unknown}', not zsh — setup writes PATH/env to ~/.zprofile and ~/.zshrc."
+       warn "  add those files to your shell init, or switch with:  chsh -s /bin/zsh" ;;
+  esac
+}
 
 # Load Homebrew into the CURRENT session of the script (to use brew/binaries now).
 load_brew() {

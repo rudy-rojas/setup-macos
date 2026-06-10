@@ -90,7 +90,7 @@ readonly ZSHRC_MARKER_START="# >>> terminal-setup >>>"
 readonly ZSHRC_MARKER_END="# <<< terminal-setup <<<"
 
 # Backup directory (created only if something is backed up) and log.
-readonly RUN_STAMP="$(date +%Y%m%d-%H%M%S)"
+RUN_STAMP="$(date +%Y%m%d-%H%M%S)"; readonly RUN_STAMP
 readonly BACKUP_ROOT="${HOME}/.terminal-setup-backups/${RUN_STAMP}"
 readonly LOG_FILE="${TMPDIR:-/tmp}/terminal-setup-${RUN_STAMP}.log"
 
@@ -1080,6 +1080,7 @@ if command -v starship >/dev/null 2>&1; then
 fi
 ${ZSHRC_MARKER_END}
 EOF
+  # shellcheck disable=SC2088  # literal ~ in a human-facing log line, not a path
   success "~/.zshrc updated"
 }
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 08. PostgreSQL 16 — installs, keg-only PATH (arch-aware), service, extensions.
+# 08. PostgreSQL — installs (PG_VERSION, default 16), keg-only PATH (arch-aware),
+# service, extensions.
 # By default does NOT create databases: data is restored from ~/BackupsBeforeClean.
 # Pass PG_DATABASES="db1 db2" to create empty databases with extensions.
 # =============================================================================
@@ -9,25 +10,23 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 source "$HERE/../lib/common.sh"
 load_brew
 
-step "PostgreSQL 16"
+step "PostgreSQL $PG_VERSION"
 
-brew_ensure postgresql@16
+PG_FORMULA="postgresql@${PG_VERSION}"
+brew_ensure "$PG_FORMULA"
 
-# postgresql@16 is keg-only → add its bin to the PATH (arch-agnostic via brew --prefix).
+# postgresql@NN is keg-only → add its bin to the PATH (arch-agnostic via brew --prefix).
 # Escape \$PATH so it stays LITERAL in ~/.zshrc (re-evaluated in every shell, not frozen).
-PG_BIN="$("$BREW" --prefix postgresql@16)/bin"
+PG_BIN="$("$BREW" --prefix "$PG_FORMULA")/bin"
 append_once "$ZSHRC" "export PATH=\"$PG_BIN:\$PATH\""
 export PATH="$PG_BIN:$PATH"        # in THIS session (do NOT use 'exec zsh -l': it would abort the script)
 
 # Service.
-service_ensure postgresql@16
+service_ensure "$PG_FORMULA"
 
-# Wait until it accepts connections before using it.
-log "waiting for PostgreSQL to accept connections…"
-tries=0
-until pg_isready -q; do
-  tries=$((tries + 1)); [ "$tries" -ge 30 ] && die "PostgreSQL did not respond after 30s."; sleep 1
-done
+# Wait until it accepts connections before using it (timeout: SETUP_TIMEOUT).
+wait_for "PostgreSQL to accept connections" pg_isready -q \
+  || die "PostgreSQL did not respond after ${SETUP_TIMEOUT}s."
 ok "PostgreSQL active ($(psql --version | awk '{print $3}'))"
 
 # Create project databases (optional) + extensions, idempotent.

@@ -63,6 +63,10 @@ done
 
 # ── Run preparation (only if we are actually going to execute) ───────────────
 if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
+  # The modules write PATH/env to the zsh init files; warn once up front if the
+  # login shell isn't zsh so those changes aren't silently lost.
+  check_login_shell
+
   # Marker for the modules: they run orchestrated, NOT standalone. Each module is
   # one step of many, so none should announce "installation complete" — that is
   # declared by setup.sh at the end (e.g. module 01 narrows its summary).
@@ -82,7 +86,7 @@ if [[ "$LIST" == 0 && "$DRY" == 0 ]]; then
     [[ -n "$ONLY" && "$nn" != "$ONLY" ]] && continue
     [[ -n "$FROM" && "$nn" < "$FROM" ]] && continue
     case "$SKIPS" in *" $nn "*) continue ;; esac
-    case " 02 11 12 " in *" $nn "*) sudo_session_begin; break ;; esac
+    if [[ " 02 11 12 " == *" $nn "* ]]; then sudo_session_begin; break; fi
   done
 fi
 

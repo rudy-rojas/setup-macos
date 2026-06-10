@@ -56,11 +56,27 @@ default values. Variables can also be passed inline (`VAR=… ./setup.sh`).
 
 | Variable | Module | Effect |
 |---|---|---|
-| `GIT_USER_NAME` / `GIT_USER_EMAIL` | 05 | Git identity |
+| `GIT_USER_NAME` / `GIT_USER_EMAIL` | 05 | Git identity. **Explicit override only**: an identity already set on the machine is kept; the TNB default applies only when none is configured |
 | `PG_DATABASES="db1 db2"` | 08 | Creates those empty databases + extensions (Postgres uses no password) |
-| `MYSQL_ROOT_PASSWORD` | 10 | Sets the MySQL root password (non-interactive, no prompt) |
+| `MYSQL_ROOT_PASSWORD` | 10 | Sets the MySQL root password (non-interactive; never shown in `ps` or `bash -x`) |
 | `INSTALL_ANDROID_STUDIO=1` | 11 | Installs the Android Studio GUI (optional, ~1.2 GB) |
 | `INSTALL_IOS=1` | 12 | Enables the iOS module (opt-in, ~12 GB) |
+| `PG_VERSION` `PYTHON_VERSION` `JDK_VERSION` `ANDROID_API` `ANDROID_BUILD_TOOLS` | 08/03/11 | Pin a different toolchain version without editing modules (single source of truth: `lib/common.sh`) |
+| `SETUP_TIMEOUT` | 08/09/10 | Seconds to wait for a service to become ready (default 30; raise on slow machines) |
+
+## Module dependencies & order
+
+Modules are numbered in dependency order; running `./setup.sh` (or `--from NN`) respects it. When running a single module standalone, mind the prerequisites:
+
+- **02 Homebrew** is the base for everything — every other module sources `lib/common.sh`, which fails fast with a clear message (`run module 02 first`) if `brew` is missing.
+- **04 Node** provides `node`/`npm`, needed by **11 Android** for the EAS CLI.
+- **06 VS Code** needs its `code` CLI (installed by its own cask).
+
+Prerequisite checks are explicit (`load_brew`, `require_cmd`), so a missing dependency produces an actionable error instead of a cryptic failure deep inside a step.
+
+## Shell
+
+The modules write PATH/env to the **zsh** init files (`~/.zprofile`, `~/.zshrc`). If your login shell isn't zsh, `setup.sh` warns once up front; switch with `chsh -s /bin/zsh` or add those files to your shell's init.
 
 ## Idempotency
 
@@ -72,6 +88,16 @@ Test on the target machine (run it twice):
 ./setup.sh && ./setup.sh     # 2ª pasada: todo "ya instalado", sin duplicados
 diff <(sort -u ~/.zprofile) <(sort ~/.zprofile)   # no duplicate lines
 ```
+
+## Quality / CI
+
+A quality gate keeps the scripts robust without running a full install:
+
+```bash
+scripts/check.sh    # shellcheck + bash -n syntax + --list/--dry-run smoke test
+```
+
+The same checks run in CI (`.github/workflows/ci.yml`) on every push/PR: **shellcheck** and **syntax** on Linux, the **`--list`/`--dry-run` smoke test** on macOS (where `lib/common.sh` is allowed to run). `shellcheck` locally: `brew install shellcheck`.
 
 ## Data and backups
 
