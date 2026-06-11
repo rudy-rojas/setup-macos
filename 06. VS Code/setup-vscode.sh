@@ -21,7 +21,7 @@ fi
 
 # 2. Ensure the 'code' CLI is on the PATH (provided by the cask; fallback to the bundle).
 command -v code >/dev/null 2>&1 || export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"
-command -v code >/dev/null 2>&1 || die "The 'code' CLI is not available yet (open VS Code once and retry)."
+require_cmd code "open VS Code once so it installs the 'code' CLI, then retry."
 
 # 3. Essential extensions of the TNB stack (idempotent).
 EXTS=(

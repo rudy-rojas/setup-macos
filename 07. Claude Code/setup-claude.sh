@@ -21,7 +21,7 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
-need_cmd claude || die "claude is not on the PATH (~/.local/bin). Open a new terminal."
+require_cmd claude "open a new terminal so ~/.local/bin is on the PATH, then retry."
 
 # 3. Verify. claude doctor is NOT run here: it renders an interactive screen that
 #    blocks on "Enter to continue", stalling an unattended install.

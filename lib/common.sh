@@ -98,8 +98,9 @@ ZSHRC="$ZDOTDIR_EFF/.zshrc"
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 # require_cmd <command> <hint> — fail fast with a clear, actionable message when a
-# cross-module prerequisite is missing, instead of a cryptic error deep in a step.
-#   require_cmd npm "run module 04 (Node) first."
+# required command is missing (a cross-module prerequisite, or a tool that should
+# already be on PATH after its own install step), instead of a cryptic later error.
+#   require_cmd code "open VS Code once to install the 'code' CLI."
 require_cmd() {
   need_cmd "$1" && return 0
   die "'$1' is required but was not found — $2"
@@ -387,20 +388,6 @@ cask_ensure() {                       # cask_ensure cask1 cask2 ...
     fi
   done
 }
-tap_ensure() {                        # tap_ensure user/repo
-  local t="$1"
-  if "$BREW" tap | grep -qxF "$t"; then ok "tap: $t (already added)"
-  else log "brew tap $t"; "$BREW" tap "$t"; fi
-}
-
-# Install from a Brewfile (idempotent by design).
-bundle_install() {                    # bundle_install /path/to/Brewfile
-  local file="$1"
-  [[ -f "$file" ]] || die "Brewfile does not exist: $file"
-  log "brew bundle install --file=$file"
-  "$BREW" bundle install --file="$file"
-}
-
 # ── brew services: start only if not running ─────────────────────────────────
 service_ensure() {                    # service_ensure postgresql@16
   local svc="$1"

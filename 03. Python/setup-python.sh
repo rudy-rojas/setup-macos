@@ -21,7 +21,7 @@ fi
 # 2. Load uv in the current session and ensure ~/.local/bin is on the PATH.
 [[ -f "$HOME/.local/bin/env" ]] && . "$HOME/.local/bin/env"
 export PATH="$HOME/.local/bin:$PATH"
-need_cmd uv || die "uv did not become available on the PATH."
+require_cmd uv "open a new terminal or check that ~/.local/bin is on your PATH."
 ok "uv $(uv --version 2>/dev/null | awk '{print $2}')"
 
 # 3. Install Python (pinned in lib/common.sh: PYTHON_VERSION) and set it as the
