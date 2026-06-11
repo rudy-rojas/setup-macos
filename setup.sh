@@ -44,8 +44,11 @@ fi
 ONLY=""; FROM=""; DRY=0; LIST=0; SKIPS=" "; RESUME_ITERM=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --from)          FROM="${2:-}"; shift 2 ;;
-    --skip)          SKIPS="${SKIPS}${2:-} "; shift 2 ;;
+    --from)          FROM="${2:-}"
+                     [[ "$FROM" =~ ^[0-9][0-9]$ ]] || die "--from needs a two-digit module number (e.g. --from 05); got '${2:-}'."
+                     shift 2 ;;
+    --skip)          [[ "${2:-}" =~ ^[0-9][0-9]$ ]] || die "--skip needs a two-digit module number (e.g. --skip 12); got '${2:-}'."
+                     SKIPS="${SKIPS}${2} "; shift 2 ;;
     --list|-l)       LIST=1; shift ;;
     --dry-run|-n)    DRY=1; shift ;;
     # Internal: set by the Terminal.app→iTerm2 hand-off when it relaunches setup in
@@ -253,6 +256,12 @@ if [[ "$LIST" == 1 || "$DRY" == 1 ]]; then
   fi
   exit 0
 fi
+
+# A real run that selected nothing is almost always a mistake (e.g. --from past
+# the last module, or --skip removing everything); fail clearly instead of
+# silently doing nothing. (--list/--dry-run already returned above; a non-existent
+# ONLY died earlier with its own message.)
+[[ ${#to_run[@]} -gt 0 ]] || die "No modules to run — check --from/--skip (nothing matched)."
 
 # ── Run preparation ───────────────────────────────────────────────────────────
 ui_init

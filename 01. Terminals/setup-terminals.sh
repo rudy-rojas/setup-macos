@@ -236,14 +236,15 @@ preflight() {
     exit 1
   fi
 
-  # 1.3 macOS version (warns if very old; never fails on newer versions).
+  # 1.3 macOS version (warns if older than the supported minimum; never hard-fails).
+  #     The threshold MACOS_MIN_MAJOR is the single source of truth in lib/common.sh.
   local ver major
   ver="$(sw_vers -productVersion 2>/dev/null || echo '0')"
   major="${ver%%.*}"
-  if [[ "${major}" =~ ^[0-9]+$ ]] && (( major < 13 )); then
-    warning "macOS ${ver} is older than Ventura (13); some features may vary."
+  if [[ "${major}" =~ ^[0-9]+$ ]] && (( major < MACOS_MIN_MAJOR )); then
+    warning "macOS ${ver} is older than the supported minimum (macOS ${MACOS_MIN_MAJOR}); some features may vary."
   else
-    success "macOS version: ${ver} (supported, includes Sequoia and later)"
+    success "macOS version: ${ver} (supported: macOS ${MACOS_MIN_MAJOR}+)"
   fi
 
   # 1.4 Basic connectivity (needed for Homebrew and downloads).

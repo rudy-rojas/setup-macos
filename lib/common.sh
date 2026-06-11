@@ -26,6 +26,10 @@ step() { printf '\n%s%s── %s%s\n' "$C_CYN" "$C_BLD" "$*" "$C_RST"; }
 # ── Platform / architecture ──────────────────────────────────────────────────
 [[ "$(uname -s)" == "Darwin" ]] || die "setup-macos is for macOS only."
 ARCH="$(uname -m)"
+# Minimum supported macOS major version — single source of truth (module 01's
+# preflight and the README reference this). Below it the run only WARNS, never
+# hard-fails. Override with MACOS_MIN_MAJOR=… if you knowingly target an older OS.
+MACOS_MIN_MAJOR="${MACOS_MIN_MAJOR:-14}"   # 14 = Sonoma
 # Prefer an ALREADY installed brew (robust under Rosetta: an x86_64 shell on Apple
 # Silicon reports x86_64 even though the native brew lives in /opt/homebrew). If there
 # is no brew yet (new machine), decide the prefix by architecture.

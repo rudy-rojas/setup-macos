@@ -34,8 +34,10 @@ apply_git_identity user.email "${GIT_USER_EMAIL:-}" "tnb@thenationalbuilders.com
 # These are project conventions (not personal), safe to set unconditionally.
 git config --global init.defaultBranch main
 git config --global pull.rebase false
-git config --global core.editor "code --wait"
-ok "global git conventions applied (init.defaultBranch, pull.rebase, core.editor)"
+ok "global git conventions applied (init.defaultBranch, pull.rebase)"
+# core.editor ("code --wait") is set by module 06, where the 'code' CLI is
+# guaranteed present — this module runs before VS Code is installed, so setting it
+# here would point git at a 'code' that may not exist yet.
 
 # 3. GitHub authentication ONLY if missing. In an orchestrated run it is DEFERRED
 #    to the end (request_auth) so as not to interrupt the install; when run alone it

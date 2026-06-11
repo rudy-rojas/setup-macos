@@ -35,10 +35,12 @@ ok "PostgreSQL active ($(psql --version | awk '{print $3}'))"
 EXTS="citext pgcrypto pg_trgm"
 if [[ -n "${PG_DATABASES:-}" ]]; then
   for DB in ${PG_DATABASES}; do
-    if psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$DB'" | grep -q 1; then
+    # Pass the name as a bound literal (:'db') so a quote or space in it can't
+    # break or inject into the query; createdb quotes the identifier itself.
+    if psql -d postgres -v db="$DB" -tAc "SELECT 1 FROM pg_database WHERE datname = :'db'" | grep -q 1; then
       ok "database '$DB' (already exists)"
     else
-      log "createdb $DB"; createdb "$DB"
+      log "createdb $DB"; createdb -- "$DB"
     fi
     for e in $EXTS; do psql -d "$DB" -qc "CREATE EXTENSION IF NOT EXISTS $e;" >/dev/null; done
     ok "extensions on '$DB': $EXTS"

@@ -23,6 +23,11 @@ fi
 command -v code >/dev/null 2>&1 || export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"
 require_cmd code "open VS Code once so it installs the 'code' CLI, then retry."
 
+# 2b. Make VS Code git's editor now that the 'code' CLI is guaranteed present.
+#     Module 05 (Git) runs before this one, so it can't set this without risking a
+#     'code' that isn't installed yet; we set it here instead (git comes from 05).
+if need_cmd git; then git config --global core.editor "code --wait"; ok "git core.editor = code --wait"; fi
+
 # 3. Essential extensions of the TNB stack (idempotent).
 EXTS=(
   anthropic.claude-code        # Claude Code integration
@@ -31,8 +36,11 @@ EXTS=(
   bradlc.vscode-tailwindcss    # Tailwind (PLUS)
   expo.vscode-expo-tools       # Expo / React Native (tnb-mobile)
 )
+# Cache the installed list once (whole-line, case-insensitive, fixed-string match)
+# instead of invoking 'code --list-extensions' once per extension.
+INSTALLED_EXTS="$(code --list-extensions 2>/dev/null)"
 for ext in "${EXTS[@]}"; do
-  if code --list-extensions | grep -qix "$ext"; then
+  if printf '%s\n' "$INSTALLED_EXTS" | grep -qixF -- "$ext"; then
     ok "ext: $ext (already)"
   else
     log "code --install-extension $ext"; code --install-extension "$ext"
