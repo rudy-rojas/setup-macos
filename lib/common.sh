@@ -54,6 +54,11 @@ ANDROID_BUILD_TOOLS="${ANDROID_BUILD_TOOLS:-36.0.0}" # Android build-tools versi
 # with SETUP_TIMEOUT=… for slow machines / cold starts.
 SETUP_TIMEOUT="${SETUP_TIMEOUT:-30}"
 
+# Seconds to wait for the Xcode Command Line Tools GUI install to finish before
+# giving up (much longer than a service check). Bounds the wait so a cancelled or
+# failed install can't hang the run forever; raise it on slow links.
+CLT_INSTALL_TIMEOUT="${CLT_INSTALL_TIMEOUT:-1800}"   # 30 min
+
 # ── Resilient Homebrew downloads (avoid indefinitely stalled transfers) ───────
 # Symptom this prevents: a cask/bottle download (e.g. Alacritty's .dmg, served
 # from the GitHub release CDN) hangs "forever" even on a healthy connection,
@@ -155,6 +160,37 @@ append_once() {
   ok "added to $(basename "$file"): ${C_DIM}${line}${C_RST}"
 }
 
+# Like append_once, but for a line whose VALUE changes when a pinned version is
+# bumped (e.g. a keg-only PATH export tied to PG_VERSION, or JAVA_HOME tied to
+# JDK_VERSION). append_once would leave the OLD line behind on every bump, so the
+# dotfile slowly fills with dead exports. set_managed_line tags the line with a
+# trailing "# setup-macos:<tag>" marker and, on each run, removes any prior line
+# carrying that tag (and the legacy untagged form an older append_once wrote)
+# before writing the current one — so there is exactly one line per tag.
+#   set_managed_line <file> <tag> <line>
+# Idempotent: an unchanged line is detected and left untouched (silent no-op),
+# so a same-version re-run does not rewrite the file. Use a unique <tag> per line.
+set_managed_line() {
+  local file="$1" tag="$2" line="$3"
+  local marker="# setup-macos:${tag}"
+  local tagged="${line}  ${marker}"
+  [[ -e "$file" ]] || { mkdir -p "$(dirname "$file")"; : > "$file"; }
+  # No-op fast path: the current tagged line is already the only one for this tag.
+  if grep -qxF -- "$tagged" "$file" && [[ "$(grep -cF -- "$marker" "$file")" == 1 ]]; then
+    return 0
+  fi
+  # Drop every prior line for this tag (matched by marker) and any legacy untagged
+  # copy (exact match), then append the current tagged line. Strings go through the
+  # environment so awk treats them literally (avoids -v backslash processing).
+  local tmp; tmp="$(mktemp)"
+  SML_MARKER="$marker" SML_LINE="$line" awk \
+    'index($0, ENVIRON["SML_MARKER"]) == 0 && $0 != ENVIRON["SML_LINE"]' \
+    "$file" > "$tmp"
+  printf '%s\n' "$tagged" >> "$tmp"
+  mv -f "$tmp" "$file"
+  ok "set in $(basename "$file") [${tag}]: ${C_DIM}${line}${C_RST}"
+}
+
 # ── Privileges: a single password for the whole run ──────────────────────────
 # Ask for the password ONCE and, for the duration of setup, install a temporary
 # drop-in in /etc/sudoers.d so that neither Homebrew, nor the Command Line Tools,
@@ -165,7 +201,8 @@ append_once() {
 #     and replaced/removed, it doesn't accumulate;
 #   • is validated with `visudo -cf` BEFORE being installed (an invalid sudoers
 #     could leave you without sudo); if it doesn't validate, it is skipped (the .pkg will ask for the password);
-#   • is ALWAYS removed on exit (the orchestrator's EXIT trap) via sudo_session_end.
+#   • is ALWAYS removed on exit or interrupt (the orchestrator traps EXIT and
+#     INT/TERM/HUP) via sudo_session_end; the next run also clears any leftover.
 # Manual cleanup if a run dies with kill -9:  sudo rm -f /etc/sudoers.d/setup-macos
 SUDO_DROPIN="/etc/sudoers.d/setup-macos"
 
@@ -301,8 +338,15 @@ ensure_clt() {
   if [[ "$installed" -ne 0 ]] || ! clt_present; then
     warn "unattended path not available; opening Apple's graphical installer…"
     xcode-select --install >/dev/null 2>&1 || true
-    log "waiting for the Command Line Tools installation to finish…"
-    until clt_present; do sleep 5; done
+    log "waiting for the Command Line Tools installation to finish (up to ${CLT_INSTALL_TIMEOUT}s)…"
+    local waited=0
+    until clt_present; do
+      sleep 5; waited=$(( waited + 5 ))
+      if (( waited >= CLT_INSTALL_TIMEOUT )); then
+        die "Command Line Tools still absent after ${CLT_INSTALL_TIMEOUT}s. Finish/retry 'xcode-select --install' and re-run (or raise CLT_INSTALL_TIMEOUT)."
+      fi
+      if (( waited % 60 == 0 )); then log "  still waiting for the Command Line Tools… (${waited}s elapsed)"; fi
+    done
   fi
 
   clt_present || die "Could not install the Xcode Command Line Tools."

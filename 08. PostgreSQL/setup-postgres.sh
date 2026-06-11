@@ -17,8 +17,10 @@ brew_ensure "$PG_FORMULA"
 
 # postgresql@NN is keg-only → add its bin to the PATH (arch-agnostic via brew --prefix).
 # Escape \$PATH so it stays LITERAL in ~/.zshrc (re-evaluated in every shell, not frozen).
+# set_managed_line (not append_once): on a PG_VERSION bump the old @NN line is
+# replaced instead of leaving a second, stale PATH export behind.
 PG_BIN="$("$BREW" --prefix "$PG_FORMULA")/bin"
-append_once "$ZSHRC" "export PATH=\"$PG_BIN:\$PATH\""
+set_managed_line "$ZSHRC" "pg-bin" "export PATH=\"$PG_BIN:\$PATH\""
 export PATH="$PG_BIN:$PATH"        # in THIS session (do NOT use 'exec zsh -l': it would abort the script)
 
 # Service.

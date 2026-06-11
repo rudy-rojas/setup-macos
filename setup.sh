@@ -16,8 +16,8 @@
 # If any module to run uses sudo (02 Homebrew/CLT, 11 Android, 12 iOS), the
 # password is asked ONCE at the start. For the duration of setup, a temporary
 # drop-in is installed in /etc/sudoers.d (validated with visudo) so that the
-# cask .pkg installers don't ask for it either; it is ALWAYS removed on exit.
-# --list and --dry-run ask for nothing.
+# cask .pkg installers don't ask for it either; it is ALWAYS removed on exit,
+# including on an interrupt (Ctrl-C / SIGTERM / SIGHUP). --list and --dry-run ask for nothing.
 #
 # INTERACTIVE app authentications (e.g. the GitHub web login) are deferred to
 # the END, after everything is installed, so they don't interrupt the process.
@@ -272,11 +272,22 @@ export SETUP_ORCHESTRATED=1
 
 # Deferred authentication queue: interactive logins (GitHub, etc.) run at the
 # END, after everything is installed, so they don't interrupt the process. A
-# single EXIT trap closes the sudo session (removes the drop-in) and clears the queue.
+# cleanup trap closes the sudo session (removes the drop-in) and clears the queue.
 # On an iTerm2 hand-off (HANDOFF_IN_PROGRESS) the drop-in is KEPT so the resumed
 # run reuses it without a second password prompt.
 SETUP_AUTH_QUEUE="$(mktemp -t setup-macos-auth)"; export SETUP_AUTH_QUEUE
-trap '[[ -n "${HANDOFF_IN_PROGRESS:-}" ]] || sudo_session_end; rm -f "${SETUP_AUTH_QUEUE:-}"' EXIT
+
+# Cleanup runs on a normal exit AND on INT/TERM/HUP, so an interrupted run (Ctrl-C,
+# a closed iTerm2 window before the resume leg starts) still removes the temporary
+# passwordless sudoers drop-in instead of leaving it behind. It is idempotent
+# (sudo_session_end and rm are no-ops once done), so the signal path — which also
+# triggers the EXIT trap — can safely run it twice.
+setup_cleanup() {
+  [[ -n "${HANDOFF_IN_PROGRESS:-}" ]] || sudo_session_end
+  rm -f "${SETUP_AUTH_QUEUE:-}"
+}
+trap setup_cleanup EXIT
+trap 'setup_cleanup; exit 130' INT TERM HUP
 
 # Open the sudo session (a single password) if any module to run needs it:
 # 02 (Homebrew/CLT), 11 (Android: cask zulu@17 .pkg) and 12 (iOS). The sudo is

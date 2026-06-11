@@ -19,9 +19,10 @@ brew_ensure watchman
 
 # 2. JDK (Azul Zulu, JDK_VERSION — 17 by default; RN/Expo break on 21+).
 #    The dotfile line keeps $(…) LITERAL (escaped \$) so it re-resolves per shell,
-#    but bakes in the pinned major version.
+#    but bakes in the pinned major version. set_managed_line (not append_once) so a
+#    JDK_VERSION bump replaces the old line instead of leaving a stale JAVA_HOME.
 cask_ensure "zulu@${JDK_VERSION}"
-append_once "$ZSHRC" "export JAVA_HOME=\$(/usr/libexec/java_home -v ${JDK_VERSION})"
+set_managed_line "$ZSHRC" "java-home" "export JAVA_HOME=\$(/usr/libexec/java_home -v ${JDK_VERSION})"
 JAVA_HOME="$(/usr/libexec/java_home -v "${JDK_VERSION}" 2>/dev/null || true)"
 export JAVA_HOME
 [[ -n "$JAVA_HOME" ]] && ok "JAVA_HOME → $JAVA_HOME"
