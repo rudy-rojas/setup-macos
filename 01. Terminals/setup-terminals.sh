@@ -37,10 +37,14 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 # ── Shared library (setup-macos) ────────────────────────────────────────────
-# Pull in the common helpers — chiefly the arch-aware Homebrew detection
-# ($BREW / $BREW_PREFIX), shared with the rest of the setup.sh modules. This
-# module keeps its own richer logging, traps, backups and step numbering; it
-# only borrows the brew-detection base so all modules agree on the prefix.
+# Pull in the common helpers — the arch-aware Homebrew detection ($BREW /
+# $BREW_PREFIX) and small utilities like need_cmd — shared with the other
+# setup.sh modules so they all agree on the prefix.
+# DELIBERATE divergence: this module keeps its OWN richer logging (info/success/
+# warning with a timestamped logfile and ANSI-stripped lines), file backups
+# (RUN_STAMP / BACKUP_ROOT) and per-step numbering — things common.sh's lean
+# log/ok/warn don't provide — so it is intentionally NOT migrated onto them; it
+# only borrows the brew base and need_cmd.
 _TERM_HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # shellcheck source=../lib/common.sh
 source "${_TERM_HERE}/../lib/common.sh"
@@ -157,8 +161,7 @@ on_exit() {
 trap on_exit EXIT
 
 # ── General utilities ───────────────────────────────────────────────────────
-have() { command -v "$1" >/dev/null 2>&1; }
-
+# (need_cmd, from lib/common.sh, replaces the former local have().)
 ensure_dir() { [[ -d "$1" ]] || mkdir -p "$1"; }
 
 # Are Xcode's Command Line Tools installed?
@@ -288,7 +291,7 @@ preflight() {
 ensure_homebrew() {
   step "Homebrew"
 
-  if ! have brew; then
+  if ! need_cmd brew; then
     warning "Homebrew not found. Installing in non-interactive mode..."
     NONINTERACTIVE=1 /bin/bash -c \
       "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -299,8 +302,8 @@ ensure_homebrew() {
 
   # Ensure `brew` is on the PATH using the shared arch-aware detection
   # (lib/common.sh exports $BREW for both /opt/homebrew and /usr/local).
-  have brew || eval "$("$BREW" shellenv)"
-  have brew || { error "Couldn't locate 'brew' on the PATH after installation."; exit 1; }
+  need_cmd brew || eval "$("$BREW" shellenv)"
+  need_cmd brew || { error "Couldn't locate 'brew' on the PATH after installation."; exit 1; }
 
   # Update the formula indexes (silent, not critical if it fails).
   info "Updating Homebrew indexes..."
@@ -405,12 +408,12 @@ build_pyobjc_venv() {
   local base=""
   if clt_present && [[ -x /usr/bin/python3 ]]; then
     base="/usr/bin/python3"
-  elif have python3; then
+  elif need_cmd python3; then
     base="$(command -v python3)"
   else
     info "Installing Python with Homebrew to enable AppKit..."
     install_formula python || true
-    have python3 && base="$(command -v python3)"
+    need_cmd python3 && base="$(command -v python3)"
   fi
   [[ -n "${base}" ]] || { warning "No base Python 3 to create the pyobjc environment."; return 1; }
 
@@ -445,7 +448,7 @@ setup_python() {
   if clt_present && [[ -x /usr/bin/python3 ]] && /usr/bin/python3 -c 'import AppKit' >/dev/null 2>&1; then
     PYTHON_APPKIT="/usr/bin/python3"
   # 2) Any python3 on the PATH that already ships AppKit.
-  elif have python3 && python3 -c 'import AppKit' >/dev/null 2>&1; then
+  elif need_cmd python3 && python3 -c 'import AppKit' >/dev/null 2>&1; then
     PYTHON_APPKIT="$(command -v python3)"
   # 3) Fallback: pyobjc virtual environment.
   else
@@ -457,7 +460,7 @@ setup_python() {
     PYTHON_BIN="${PYTHON_APPKIT}"
   elif clt_present && [[ -x /usr/bin/python3 ]]; then
     PYTHON_BIN="/usr/bin/python3"
-  elif have python3; then
+  elif need_cmd python3; then
     PYTHON_BIN="$(command -v python3)"
   else
     PYTHON_BIN=""
@@ -1094,10 +1097,12 @@ EOF
 verify_install() {
   step "Final verification"
 
-  local ok=1 item
+  # Informational only: report what's present/missing but never fail the install
+  # (a missing optional tool shouldn't abort an otherwise-good terminal setup).
+  local item
   for item in alacritty starship lsd; do
-    if have "${item}"; then success "Available: ${item}"
-    else warning "Not available on PATH: ${item}"; ok=0; fi
+    if need_cmd "${item}"; then success "Available: ${item}"
+    else warning "Not available on PATH: ${item}"; fi
   done
 
   [[ -d "/Applications/iTerm.app" ]] && success "iTerm2 installed" \
@@ -1105,10 +1110,10 @@ verify_install() {
 
   for item in "${ALACRITTY_CONF}" "${STARSHIP_CONF}" "${STARSHIP_GRUVBOX_CONF}" "${LSD_ICONS_CONF}"; do
     [[ -f "${item}" ]] && success "Config present: ${item}" \
-      || { warning "Missing configuration file: ${item}"; ok=0; }
+      || warning "Missing configuration file: ${item}"
   done
 
-  return $((ok == 1 ? 0 : 0))   # Doesn't fail the install; informational only.
+  return 0
 }
 
 # ── 13. Summary ─────────────────────────────────────────────────────────────
