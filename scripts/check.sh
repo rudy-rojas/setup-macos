@@ -42,6 +42,9 @@ say "smoke: --list / --dry-run (no side effects)"
 ./setup.sh --list   >/dev/null && echo "--list: OK"    || fail=1
 ./setup.sh --dry-run >/dev/null && echo "--dry-run: OK" || fail=1
 
+say "helpers: idempotency (append_once / set_managed_line)"
+bash "$ROOT/scripts/test-helpers.sh" || fail=1
+
 say "result"
 if [[ "$fail" == 0 ]]; then echo "all checks passed ✓"; else echo "checks FAILED ✗"; fi
 exit "$fail"

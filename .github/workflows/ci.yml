@@ -39,3 +39,5 @@ jobs:
         run: ./setup.sh --list
       - name: setup.sh --dry-run
         run: ./setup.sh --dry-run
+      - name: helper idempotency tests (append_once / set_managed_line)
+        run: ./scripts/test-helpers.sh
