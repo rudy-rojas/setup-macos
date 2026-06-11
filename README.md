@@ -82,15 +82,14 @@ The modules write PATH/env to the **zsh** init files (`~/.zprofile`, `~/.zshrc`)
 
 ### Terminal.app → iTerm2 hand-off
 
-Terminal.app rewrites its own preferences when it quits, so the Gruvbox profile written by module 01 is lost the moment you close the Terminal.app window you launched setup from. To make it persist, the profile must be applied while Terminal.app is **not** running.
+Terminal.app rewrites its own preferences when it quits, so a Gruvbox profile written while the launching Terminal.app is open is lost the moment you close it. To make it persist, the profile must be applied while Terminal.app is **not** running.
 
-So when you run `./setup.sh` **from Terminal.app**, once module 01 finishes (iTerm2 is installed and configured) setup automatically:
+So when you run `./setup.sh` **from Terminal.app**, the work happens in two stages:
 
-1. relaunches the rest of the install **inside iTerm2** (reusing the same `sudo` session — no second password prompt),
-2. **closes Terminal.app** and re-applies its profile (now it sticks),
-3. continues with modules 02→ in iTerm2 and drops you into a configured login shell.
+1. **Stage 1 (in Terminal.app):** module 01 installs iTerm2/Alacritty and configures everything **except** Terminal.app (it runs with `--no-terminal-app`), then setup relaunches the rest **inside iTerm2** (reusing the same `sudo` session — no second password prompt).
+2. **Stage 2 (in iTerm2):** setup **closes Terminal.app**, applies the Terminal.app profile (now it sticks), and continues with modules 02→, dropping you into a configured login shell.
 
-It only triggers on a multi-module run started from Terminal.app, runs once (guarded against re-entry), and falls back to staying in Terminal.app if iTerm2 can't be launched. Disable it with `NO_TERMINAL_HANDOFF=1`. Starting from iTerm2 (or any non-Terminal.app terminal) needs no hand-off — the profile persists normally.
+It only triggers on a multi-module run started from Terminal.app, runs once (guarded against re-entry), and if the hand-off can't happen (iTerm2 can't be launched, or module 01 is the only module to run) it configures Terminal.app in place instead — the profile is never skipped. Disable the hand-off with `NO_TERMINAL_HANDOFF=1`. Starting from iTerm2 (or any non-Terminal.app terminal) needs no hand-off — the profile persists normally.
 
 ## Idempotency
 

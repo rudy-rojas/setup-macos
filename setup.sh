@@ -73,14 +73,17 @@ done
 [[ ${#mods[@]} -gt 0 ]] || die "No modules found ('NN. Name/setup-*.sh') in $HERE."
 
 # ── Terminal.app → iTerm2 hand-off ───────────────────────────────────────────
-# Terminal.app rewrites its own preferences when it quits, so the Gruvbox profile
-# written by module 01 is lost the moment you close the Terminal.app you launched
-# setup from. The fix is to apply that profile while Terminal.app is NOT running:
-# once module 01 has installed and configured everything (iTerm2 included), we
-# relaunch the rest of setup INSIDE iTerm2, which then closes Terminal.app and
-# re-applies its profile (now persisting) before continuing with modules 02→.
+# Terminal.app rewrites its own preferences when it quits, so a Gruvbox profile
+# written while the launching Terminal.app is open is lost the moment you close it.
+# So Terminal.app's profile must be applied while Terminal.app is NOT running. Flow:
+#   • Stage 1 (in Terminal.app): module 01 runs with --no-terminal-app — it installs
+#     iTerm2/Alacritty and configures everything EXCEPT Terminal.app.
+#   • We relaunch the rest of setup INSIDE iTerm2, which closes Terminal.app and
+#     applies the Terminal.app profile (now persisting), then continues 02→.
 # Automatic on a multi-module run started from Terminal.app; opt out with
-# NO_TERMINAL_HANDOFF=1. Guarded against re-entry by SETUP_HANDOFF_DONE.
+# NO_TERMINAL_HANDOFF=1. Guarded against re-entry by SETUP_HANDOFF_DONE. If the
+# hand-off can't happen (iTerm2 missing / opted out / 01 is the last module),
+# module 01 configures Terminal.app in place instead (may need a manual reselect).
 
 # Build "--skip NN" flags from the current SKIPS set, to pass through on resume.
 handoff_skip_flags() {
@@ -92,6 +95,18 @@ handoff_skip_flags() {
     for tok in "${skips_arr[@]}"; do out="$out --skip $tok"; done
   fi
   printf '%s' "$out"
+}
+
+# Whether a Terminal.app→iTerm2 hand-off is INTENDED for this run. Mirrors the
+# checks in handoff_to_iterm_if_applicable EXCEPT the iTerm2-installed test: iTerm2
+# is installed by module 01, so its presence isn't known until after stage 1. Used
+# up-front to decide whether module 01 should defer its Terminal.app config.
+handoff_intended() {
+  [[ "${SETUP_HANDOFF_DONE:-0}" != 1 ]]         || return 1   # already resumed once
+  [[ "${NO_TERMINAL_HANDOFF:-0}" != 1 ]]        || return 1   # user opted out
+  [[ "${TERM_PROGRAM:-}" == "Apple_Terminal" ]] || return 1   # only FROM Terminal.app
+  [[ -t 1 ]]                                     || return 1   # interactive only
+  return 0
 }
 
 # Hand off to iTerm2 to run the rest of setup. May exit the script; returns
@@ -139,8 +154,22 @@ OSA
   return 0
 }
 
-# Resume side (runs in iTerm2): close Terminal.app, wait for it to exit, then
-# re-apply ONLY the Terminal.app profile (module 01 --terminal-only).
+# Fallback when a hand-off was INTENDED (so module 01 ran with --no-terminal-app)
+# but didn't happen (iTerm2 missing, or osascript failed). Apply the Terminal.app
+# profile here in Terminal.app so it isn't left unconfigured — it may be clobbered
+# when Terminal.app quits, hence the reselect note (same caveat as a no-hand-off run).
+apply_terminal_app_fallback() {
+  local t01="" s
+  for s in "$HERE"/01.*/setup-*.sh; do [[ -f "$s" ]] && { t01="$s"; break; }; done
+  [[ -n "$t01" ]] || return 0
+  warn "Hand-off to iTerm2 didn't happen; applying the Terminal.app profile here instead"
+  warn "  (Terminal.app may rewrite it on quit — reselect the Terminal.app profile if needed)."
+  bash "$t01" --terminal-only || warn "Terminal.app profile apply reported a problem (continuing)."
+}
+
+# Resume side (runs in iTerm2): close Terminal.app, wait for it to exit, then apply
+# the Terminal.app profile (module 01 --terminal-only). With the deferred flow this
+# is the ONLY place the profile is written (stage 1 ran with --no-terminal-app).
 resume_terminal_reapply() {
   step "Resuming in iTerm2"
   if pgrep -x Terminal >/dev/null 2>&1; then
@@ -312,6 +341,20 @@ fi
 # before continuing with the remaining modules.
 [[ "$RESUME_ITERM" == 1 ]] && resume_terminal_reapply
 
+# Decide ONCE whether module 01 should defer its Terminal.app config to the iTerm2
+# leg: only when a hand-off is intended AND module 01 is followed by another module
+# (the hand-off resumes from that next module). If 01 is the last/only module to
+# run, there's nothing to hand off to, so it configures Terminal.app itself.
+DEFER_TERMINAL_APP=0
+if handoff_intended; then
+  seen_01=0
+  for m in "${to_run[@]}"; do
+    nn="${m%%|*}"
+    if [[ "$seen_01" == 1 ]]; then DEFER_TERMINAL_APP=1; break; fi
+    [[ "$nn" == "01" ]] && seen_01=1
+  done
+fi
+
 # ── Execute ───────────────────────────────────────────────────────────────────
 total="${#to_run[@]}"; ran=0; did_01=0
 MOD_NAMES=(); MOD_TIMES=()           # per-module durations for the final recap
@@ -327,13 +370,22 @@ if [[ "$total" -gt 0 ]]; then
     # first module after 01 — that's the one we resume from.)
     if [[ "$did_01" == 1 ]]; then
       handoff_to_iterm_if_applicable "$nn"
+      # Still here ⇒ the hand-off didn't happen (it would have exited). If we deferred
+      # Terminal.app in stage 1, apply it now in Terminal.app so it isn't left unset.
+      if [[ "$DEFER_TERMINAL_APP" == 1 ]]; then apply_terminal_app_fallback; fi
       did_01=2
     fi
 
     ran=$((ran + 1))
     step_module "$ran" "$total" "$name"
     t0=$SECONDS
-    bash "$script"
+    # Stage 1 from Terminal.app: module 01 defers Terminal.app (--no-terminal-app) so
+    # it isn't written while Terminal.app is open; the iTerm2 leg applies it later.
+    if [[ "$nn" == "01" && "$DEFER_TERMINAL_APP" == 1 ]]; then
+      bash "$script" --no-terminal-app
+    else
+      bash "$script"
+    fi
     dt=$(( SECONDS - t0 ))
     ok "Module $name completed ($(fmt_duration "$dt"))"
     MOD_NAMES+=("$name"); MOD_TIMES+=("$dt")

@@ -209,6 +209,10 @@ set_managed_line() {
 #   • is ALWAYS removed on exit or interrupt (the orchestrator traps EXIT and
 #     INT/TERM/HUP) via sudo_session_end; the next run also clears any leftover.
 # Manual cleanup if a run dies with kill -9:  sudo rm -f /etc/sudoers.d/setup-macos
+# LIMITATION (verified against man sudoers, not a live cask run): this covers
+# sudo-based escalation only. A cask that uses macOS's GUI authorization dialog
+# (osascript "… with administrator privileges") instead of sudo would still prompt;
+# the sudoers drop-in does not affect that path.
 SUDO_DROPIN="/etc/sudoers.d/setup-macos"
 
 # Remove the drop-in if it exists. Idempotent and robust: warns if it couldn't delete it.

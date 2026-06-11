@@ -105,7 +105,8 @@ PYTHON_APPKIT=""          # Interpreter with AppKit/pyobjc (Terminal.app and fon
 
 # Global state.
 USE_COLOR=1
-TERMINAL_ONLY=0           # --terminal-only: re-apply ONLY the Terminal.app profile.
+TERMINAL_ONLY=0           # --terminal-only: apply ONLY the Terminal.app profile.
+NO_TERMINAL_APP=0         # --no-terminal-app: configure everything EXCEPT Terminal.app.
 BACKUP_MADE=0
 declare -a WARNINGS=()    # Accumulates non-fatal warnings for the final summary.
 STEP=0
@@ -212,10 +213,14 @@ parse_args() {
       -h|--help)    print_help; exit 0 ;;
       -v|--version) printf '%s %s\n' "${SCRIPT_NAME}" "${SCRIPT_VERSION}"; exit 0 ;;
       --no-color)   USE_COLOR=0 ;;
-      # Re-apply ONLY the Terminal.app profile. Used by the orchestrator after it
-      # hands off to iTerm2 and closes Terminal.app, so the profile finally persists
-      # (Terminal.app rewrites its prefs on quit, clobbering an earlier write).
+      # Apply ONLY the Terminal.app profile. Used by the orchestrator in the iTerm2
+      # leg (Terminal.app closed) so the profile finally persists — Terminal.app
+      # rewrites its prefs on quit, clobbering any write made while it was open.
       --terminal-only) TERMINAL_ONLY=1 ;;
+      # Configure everything EXCEPT Terminal.app. The orchestrator uses this in the
+      # first (Terminal.app) leg so the Terminal.app profile is NOT written while it
+      # is open; it is applied afterwards in the iTerm2 leg via --terminal-only.
+      --no-terminal-app) NO_TERMINAL_APP=1 ;;
       *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
@@ -1133,7 +1138,11 @@ print_summary() {
   printf '  • Shared font  : %s %spt%s\n' "${FONT_FAMILY}" "${FONT_SIZE}" ""
   printf '  • Alacritty    : Tokyo Night\n'
   printf '  • iTerm2       : Ayu Mirage (profile "%s", amber cursor)\n' "${ITERM_PROFILE_NAME}"
-  printf '  • Terminal.app : Gruvbox (profile "%s")\n\n' "${TERMINAL_PROFILE_NAME}"
+  if [[ "${NO_TERMINAL_APP}" -eq 1 ]]; then
+    printf '  • Terminal.app : deferred → applied in the iTerm2 stage\n\n'
+  else
+    printf '  • Terminal.app : Gruvbox (profile "%s")\n\n' "${TERMINAL_PROFILE_NAME}"
+  fi
 
   printf '%sNext steps%s\n' "${BOLD}" "${RESET}"
   printf '  1. Open Alacritty → the Tokyo Night theme is already active.\n'
@@ -1186,7 +1195,13 @@ main() {
 
   configure_alacritty
   configure_iterm
-  configure_terminal_app
+  # Terminal.app is skipped under --no-terminal-app: the orchestrator defers it to
+  # the iTerm2 leg, where Terminal.app is closed so its profile actually persists.
+  if [[ "${NO_TERMINAL_APP}" -eq 1 ]]; then
+    info "Terminal.app configuration deferred (it will be applied from iTerm2)."
+  else
+    configure_terminal_app
+  fi
   configure_starship
   configure_lsd
   configure_zshrc
